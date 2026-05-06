@@ -11,7 +11,6 @@ import hashlib
 import pytest
 import respx
 from httpx import Response
-
 from sfmapi_client import (
     AsyncSfmApiClient,
     FeaturesSpec,
@@ -20,7 +19,6 @@ from sfmapi_client import (
     SfmApiClient,
     ValidationError,
 )
-
 
 BASE = "http://api.test"
 
@@ -115,7 +113,9 @@ def test_sync_upload_bytes_full_handshake() -> None:
     with SfmApiClient(BASE) as c:
         result = c.upload_bytes(payload)
     assert result == sha
-    assert init.called and patch.called and finalize.called
+    assert init.called
+    assert patch.called
+    assert finalize.called
 
     init_req = init.calls.last.request
     body = init_req.read().decode()

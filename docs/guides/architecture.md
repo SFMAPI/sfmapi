@@ -114,14 +114,15 @@ sequenceDiagram
 
 ## Why the runtime version vector
 
-The SfM backend (typically a pycolmap fork) ships new builds
-frequently. A reconstruction cached against backend SHA `abc` is
-not equivalent to one cached against `def`, even if the spec is
-identical. The cache key includes a `runtime_version_id` derived
-from `{colmap_sha, baxx_sha, cudss_ver, cuda_arch, sam_model_sha,
-seed}`, so a worker upgrade automatically invalidates cached
-output. The exact field names are backend-specific; the principle
-is generic.
+SfM backends ship new builds frequently. A reconstruction cached
+against backend SHA `abc` is not equivalent to one cached against
+`def`, even if the spec is identical. Each cache key salts in the
+backend's `runtime_version_id` — a freeform fingerprint string the
+backend computes (typically rolled up from engine commit + auxiliary
+library shas + CUDA arch + a deterministic seed). When a worker
+upgrade swaps the backend or its underlying engine, cached output
+invalidates automatically. sfmapi treats the string as opaque; the
+backend defines what goes into it.
 
 ## Storage layout
 

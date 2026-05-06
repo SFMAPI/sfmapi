@@ -62,13 +62,22 @@ either is red, the PR doesn't land.
 6. If it submits a Task, add the per-task module under
    `app/workers/tasks/` and register it in `app/workers/runner.py`.
 
-The web tier still must not import pycolmap / torch / cv2; the
-`test_app_does_not_import_pycolmap_or_torch` unit test enforces that.
+The web tier must not import any engine library (pycolmap, torch,
+cv2, segment_anything, ...); the
+`test_app_does_not_import_pycolmap_or_torch` unit test enforces that
+boundary.
 
-## Adding a new pycolmap binding
+## Adding a new backend or backend method
 
-1. Add the entry-point function in `app/adapters/colmap_adapter.py`
-   (lazy import only).
-2. If it needs a worker task, add it under `app/workers/tasks/`.
-3. Test the adapter with `pytest -m needs_pycolmap` on a CUDA host
-   (the GH Actions `worker-tests` workflow does this nightly).
+sfmapi ships no concrete SfM backend; engine packages live in their
+own repos and satisfy ``app.adapters.backend.SfmBackend``.
+
+1. Implement the protocol in your backend package; raise
+   ``CapabilityUnavailableError`` for ops you don't support and
+   advertise the supported subset via ``capabilities()``.
+2. Register the factory at app startup:
+   ``register_backend("name", MyBackend)``.
+3. If a new wire op is needed (a method not yet on the protocol),
+   add it here in `app/adapters/backend.py` and surface a worker
+   task under `app/workers/tasks/`. Worker tasks call backends only
+   through ``get_backend()``, never via direct import.

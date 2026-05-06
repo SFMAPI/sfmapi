@@ -9,7 +9,6 @@ import pytest
 import respx
 from click.testing import CliRunner
 from httpx import Response
-
 from sfmapi_client.cli.main import cli
 
 BASE = "http://api.test"

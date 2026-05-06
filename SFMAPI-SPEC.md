@@ -89,11 +89,12 @@ COLMAP wrapper: the schemas and HTTP shapes don't change between
 backends; only the set of advertised capabilities does.
 
 The reference implementation isolates the backend behind a single
-Python protocol (`app.adapters.backend.SfmBackend`); see
-`app.adapters.colmap_backend.ColmapModBackend` for the colmap_mod
-implementation. Adding e.g. an OpenMVG backend is a single
-`register_backend("openmvg", OpenMvgBackend)` call — no schema, no
-endpoint, and no worker-task signature changes.
+Python protocol (`app.adapters.backend.SfmBackend`). sfmapi itself
+ships **no concrete backend** — engines like pycolmap, OpenSfM, hloc,
+or custom forks live in their own packages, implement
+`SfmBackend`, and register at app startup with
+`register_backend("name", MyBackend)`. Adding a new backend is purely
+additive: no schema, endpoint, or worker-task signature changes.
 
 ---
 
