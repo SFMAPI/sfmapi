@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
       - name: Install
@@ -35,7 +35,7 @@ jobs:
       SFMAPI_PYCOLMAP_AVAILABLE: "false"
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
       - name: Install
         run: uv sync --extra dev
       - name: Test (SQLite)
@@ -63,7 +63,7 @@ jobs:
       SFMAPI_PYCOLMAP_AVAILABLE: "false"
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
       - name: Install
         run: uv sync --extra dev
       - name: Wait for postgres
