@@ -311,51 +311,6 @@ async def submit_render_cubemap(
     )
 
 
-async def submit_dense(
-    session: AsyncSession,
-    *,
-    tenant_id: str,
-    recon_id: str,
-    spec: dict | None = None,
-    inline: bool = False,
-) -> tuple[str, list]:
-    """Run dense MVS (undistort + patch_match_stereo + fusion).
-
-    Refuses if the dataset's source has no local ``image_root``
-    (uploads aren't materialized at submit time)."""
-    require_capability("dense.patch_match_stereo")
-    require_capability("dense.stereo_fusion")
-    spec = spec or {}
-    r = await reconstruction_service.get_reconstruction(
-        session, tenant_id=tenant_id, recon_id=recon_id
-    )
-    d = await dataset_service.get_dataset(session, tenant_id=tenant_id, dataset_id=r.dataset_id)
-    materialization = await derive_materialization(session, tenant_id=tenant_id, dataset=d)
-    image_root = materialization.get("image_root")
-    if not image_root:
-        raise ValidationError(
-            "dense MVS needs a local image_root; upload sources are not "
-            "supported (worker can't materialize on demand here)"
-        )
-    rec_root, sparse_dir = _reconstruction_paths(tenant_id, r)
-    inputs = {
-        "recon_id": r.recon_id,
-        "reconstruction_root": str(rec_root),
-        "sparse_dir": str(sparse_dir),
-        "image_root": image_root,
-    }
-    return await _submit_single_stage(
-        session,
-        tenant_id=tenant_id,
-        project_id=r.project_id,
-        recipe="dense",
-        kind="dense",
-        inputs=inputs,
-        spec=spec,
-        inline=inline,
-    )
-
-
 async def submit_video_frames(
     session: AsyncSession,
     *,
@@ -454,39 +409,6 @@ async def submit_merge_recons(
         project_id=target.project_id,
         recipe="merge_recons",
         kind="merge_recons",
-        inputs=inputs,
-        spec=spec,
-        inline=inline,
-    )
-
-
-async def submit_mesh(
-    session: AsyncSession,
-    *,
-    tenant_id: str,
-    recon_id: str,
-    method: str = "poisson",
-    options: dict | None = None,
-    inline: bool = False,
-) -> tuple[str, list]:
-    """Generate a mesh from the latest sealed reconstruction."""
-    require_capability(f"mesh.{method}")
-    r = await reconstruction_service.get_reconstruction(
-        session, tenant_id=tenant_id, recon_id=recon_id
-    )
-    rec_root, sparse_dir = _reconstruction_paths(tenant_id, r)
-    spec = {"method": method, "options": options or {}}
-    inputs = {
-        "recon_id": r.recon_id,
-        "reconstruction_root": str(rec_root),
-        "sparse_dir": str(sparse_dir),
-    }
-    return await _submit_single_stage(
-        session,
-        tenant_id=tenant_id,
-        project_id=r.project_id,
-        recipe="mesh",
-        kind="mesh",
         inputs=inputs,
         spec=spec,
         inline=inline,

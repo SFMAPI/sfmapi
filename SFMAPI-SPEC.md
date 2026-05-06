@@ -40,8 +40,35 @@ The spec is normative when it uses **MUST**, **MUST NOT**, **SHOULD**,
   GPU scheduling, Helm charts).
 - This spec does not cover offline / batch SDK ergonomics — those are
   client-side and may be implemented per-language.
-- This spec **does not** define a wire format for masks beyond
-  "an image format servable by HTTP." (Future revision will.)
+- This spec does NOT cover **dense multi-view stereo (MVS) or mesh
+  generation**. Those belong to a separate, downstream API (see
+  Appendix D). Sparse SfM and dense MVS have different memory
+  shapes, different consumers, and different lifecycles.
+- This spec does NOT cover **image segmentation / mask generation**.
+  Masks are an *input* to SfM (consumed by the feature extractor); a
+  segmentation pipeline that produces them is out of scope.
+
+### 1.3 Conformance levels
+
+Every endpoint in this spec belongs to exactly one conformance level:
+
+- **Core** — A conformant `sfmapi` server **MUST** implement the
+  endpoint. The wire shapes here are the standard.
+- **Standard extension (capability-flagged)** — Optional, but
+  standardized. A server **MUST** advertise the corresponding
+  `<capability>` in `GET /v1/capabilities` if and only if it
+  implements the endpoint. If unavailable, the endpoint **MUST**
+  return `501 Not Implemented` with
+  `application/problem+json` carrying `capability: <name>`.
+- **Reference-implementation-only** — Ships in the reference
+  `sfmapi/sfmapi` repository for operator convenience but is **not**
+  part of the standard. Other backends **MAY** omit these endpoints
+  entirely. Examples: `/v1/admin/api-keys`, `/metrics`. Compliance
+  test suites **MUST NOT** require them.
+
+Each subsection in §6 is tagged. `[Core]` items have no marker;
+`[Extension: <capability>]` items are explicitly marked, as are
+`[Reference-only]` items.
 
 ---
 
@@ -898,32 +925,7 @@ Capability flags: `pairs.{strategy}` and `matchers.{type}`. The
 match-stage request body is `{pairs: PairsSpec, matcher: MatcherSpec}`;
 the legacy combined `MatchesSpec` shape was retired.
 
-#### 6.9.9 Mesh generation (optional)
-
-`POST /v1/reconstructions/{rid}/mesh` with body
-`{"method": "poisson" | "delaunay", "options": {...}}` runs surface
-reconstruction. Output is sealed as a fresh snapshot containing
-`mesh.ply` (binary little-endian PLY) and `mesh.json` describing
-vertex/face counts. Capabilities: `mesh.poisson`, `mesh.delaunay`,
-`mesh.texture`.
-
-```json
-// mesh.json (the snapshot's MeshFile)
-{
-  "summary": {
-    "method":              "poisson",
-    "num_vertices":        184253,
-    "num_faces":           368500,
-    "has_vertex_colors":   true,
-    "has_vertex_normals":  true,
-    "bbox_min":            null,
-    "bbox_max":            null
-  },
-  "mesh_url": "/v1/reconstructions/.../snapshots/.../mesh.ply"
-}
-```
-
-#### 6.9.10 Modern export formats (optional)
+#### 6.9.9 Modern export formats [Extension: `export.<format>`]
 
 In addition to `ply | nvm | colmap_text | colmap_bin`, sfmapi
 standardizes four wire formats for downstream neural-rendering
@@ -939,7 +941,7 @@ pipelines:
 These emitters are pure-Python and **MUST** be available when the
 backend can produce a `Reconstruction` (no engine-specific code).
 
-#### 6.9.11 Map merging (optional)
+#### 6.9.10 Map merging (optional)
 
 `POST /v1/reconstructions:merge` takes
 `{target_recon_id, source_recon_ids, sim3_aligners?}` and seals the
@@ -949,7 +951,7 @@ All sources **MUST** belong to the same project as the target;
 the identity Sim3 to leave a model unchanged). Capability:
 `recon.merge`.
 
-#### 6.9.12 Batch / sequence localization (optional)
+#### 6.9.11 Batch / sequence localization (optional)
 
 Capabilities `localize.batch` and `localize.sequence` are reserved
 for backends that exploit cross-query constraints (relative-pose,
@@ -957,7 +959,7 @@ motion smoothing). The reference `colmap_mod` backend currently
 implements `localize.batch` as N independent
 `localize.from_memory` calls.
 
-#### 6.9.13 Video frame extraction (optional)
+#### 6.9.12 Video frame extraction (optional)
 
 `POST /v1/projects/{pid}/datasets:from_video` with body
 `{video_path, fps?, max_frames?}` runs ffmpeg on the worker to extract
@@ -966,7 +968,7 @@ client can register the output as a `local`-source dataset.
 Capability: `video.frame_extract` (depends on ffmpeg on the worker's
 PATH).
 
-#### 6.9.14 Kapture import (optional)
+#### 6.9.13 Kapture import (optional)
 
 `POST /v1/projects/{pid}/datasets:import_kapture` with body
 `{archive_path}` parses an extracted Kapture archive's
@@ -975,7 +977,7 @@ PATH).
 `local`-source dataset pointing at `image_root`. Capability:
 `import.kapture` (pure-Python, always available).
 
-#### 6.9.15 Pose-prior IMU + timestamps (optional)
+#### 6.9.14 Pose-prior IMU + timestamps (optional)
 
 `PosePrior` carries optional `timestamp_ns` and `imu` fields:
 
@@ -996,7 +998,7 @@ PATH).
 Capabilities `inputs.imu` and `inputs.timestamps` are advertised by
 sfmapi itself (pure storage features, backend-independent).
 
-#### 6.9.16 Bundle-adjustment loss kernels (optional)
+#### 6.9.15 Bundle-adjustment loss kernels (optional)
 
 `BundleAdjustmentSpec` adds:
 
@@ -1012,81 +1014,14 @@ sfmapi itself (pure storage features, backend-independent).
 **SHOULD** check `features.x` capability flags only when they care
 about the algorithm choice.
 
-#### 6.9.17 Featuremetric BA (optional)
+#### 6.9.16 Featuremetric BA (optional)
 
 `BundleAdjustmentSpec.mode = "featuremetric"` requests Pixel-Perfect
 SfM-style refinement (CNN-feature error, not raw reprojection).
 Capability `ba.featuremetric`. Servers without the capability
 return 501.
 
-#### 6.9.18 Dense MVS (optional)
-
-Run multi-view stereo on top of a sparse reconstruction:
-
-| Method | Path                                               | Returns      |
-|--------|----------------------------------------------------|--------------|
-| POST   | `/v1/reconstructions/{rid}/dense`                  | 202 + job    |
-
-The worker chains COLMAP's `undistort_images` →
-`patch_match_stereo` (CUDA-only) → `stereo_fusion`, converts the
-outputs from COLMAP's native binary into sfmapi wire formats, and
-seals a fresh snapshot whose ``dense/`` subdirectory holds:
-
-| File                                                                  | Media type                          |
-|-----------------------------------------------------------------------|-------------------------------------|
-| `dense/index.json`                                                    | `application/json` — `DenseManifestFile` |
-| `dense/fused.bin`                                                     | `application/x-sfm-points-v1`       |
-| `dense/depth_maps/{image_name}.bin`                                   | `application/x-sfm-depth-v1`        |
-| `dense/normal_maps/{image_name}.bin` (optional)                       | `application/x-sfm-normal-v1`       |
-
-`DenseManifestFile` shape:
-
-```json
-{
-  "summary": {
-    "num_images":      42,
-    "num_depth_maps":  42,
-    "num_normal_maps": 42,
-    "fused_points":    1842311,
-    "bbox_min": null,
-    "bbox_max": null
-  },
-  "depth_maps": [
-    {
-      "image_id":       1,
-      "image_name":     "DSC_0001.jpg",
-      "width":          4032,
-      "height":         3024,
-      "depth_min":      0.42,
-      "depth_max":      18.7,
-      "has_normal_map": true
-    }
-  ]
-}
-```
-
-#### Depth map binary (`application/x-sfm-depth-v1`)
-
-32-byte header + ``width * height * float32`` body, row-major
-top-to-bottom. ``0.0`` is the conventional "no depth" sentinel; clients
-**MUST** treat non-finite values as missing.
-
-| Offset | Size | Field      | Type       |
-|--------|------|------------|------------|
-| 0      | 8    | magic      | `b"SFMDPTH\0"` |
-| 8      | 4    | version    | uint32 = 1 |
-| 12     | 4    | width      | uint32     |
-| 16     | 4    | height     | uint32     |
-| 20     | 4    | depth_min  | float32    |
-| 24     | 4    | depth_max  | float32    |
-| 28     | 4    | _pad       | uint32 = 0 |
-
-#### Normal map binary (`application/x-sfm-normal-v1`)
-
-Same 32-byte header (magic = `b"SFMNRM\0\0"`); body is ``width *
-height * 3 * float32``. Vectors are world-space, unit length.
-
-#### 6.9.8 Single-image localization (optional)
+#### 6.9.17 Single-image localization [Extension: `localize.from_memory`]
 
 Localize a query image against a reconstruction:
 
@@ -1114,16 +1049,19 @@ against the reconstruction's largest sealed snapshot. The task's
 Servers **MUST** return 404 when `recon_id` is unknown and 422 when
 `blob_sha` is missing or the wrong length (must be 64 hex chars).
 
-### 6.10 Admin (optional)
+### 6.10 Admin [Reference-only]
+
+This route group is shipped by the reference implementation for
+operator convenience but is **NOT** part of the spec. Auth is a
+deployment concern; many operators front sfmapi with their own
+identity provider, mTLS sidecar, or reverse proxy. Conformance test
+suites **MUST NOT** require it.
 
 | Method  | Path                          | Body                       | Returns                       |
 |---------|-------------------------------|----------------------------|-------------------------------|
 | POST    | `/v1/admin/api-keys`          | `{tenant_id, name?}`       | `{raw_key, api_key_id, ...}`  |
 | GET     | `/v1/admin/api-keys`          | —                          | `[ApiKeyOut]`                 |
 | DELETE  | `/v1/admin/api-keys/{kid}`    | —                          | `ApiKeyOut` (revoked)         |
-
-Servers **MAY** omit this group entirely if keys are provisioned
-out-of-band.
 
 ---
 
@@ -1591,21 +1529,21 @@ A server deprecating an endpoint **SHOULD** emit a
 
 ## 12. Open issues / future revisions
 
-The following surfaces are explicitly **not yet** in the standard,
-but are reserved for future minor revisions. Servers **MAY**
-implement them ahead of standardization under `x-` prefix paths.
+The following surfaces are reserved for future minor revisions but
+are **not yet** standardized. Servers **MAY** implement them ahead
+of standardization under `x-` prefix paths.
 
-- **Image similarity / VLAD query**: "k nearest images to image_id".
-- **Dense reconstruction / mesh**: MVS, mesh + texture extraction.
-- **Geo-registration**: rigid + scale transforms applied to a
-  submodel (geo, custom world frame).
 - **Submodel comparison / alignment**: metrics between two
   submodels.
-- **Mask sets**: a stable wire format for segmentation outputs.
+- **IMU-only / odometry-only sequence inputs**: extends pose priors
+  to standalone trajectory uploads.
+- **Streaming SLAM session**: bidirectional WebSocket frame-in /
+  pose-out at ~30 Hz (see `streaming_slam_proposal` in the
+  reference repo). Touches §8 and would unlock live map reads.
 
-(Octree tiles, image observations, and point visibility were
-specified inline in §6.9.1 / §6.9.2 in v1.0-draft. Earlier drafts
-listed them here as future work.)
+(Octree tiles, observations, similarity, georegistration, cubemap,
+pose priors, and modern export formats were originally listed here
+as future work; they're now standardized as §6.9 extensions.)
 
 ---
 
@@ -1647,5 +1585,28 @@ listed them here as future work.)
 
 ---
 
+## Appendix D. Explicitly out of scope
+
+These pipelines were considered and **excluded** from sfmapi by
+design. Each has a different lifecycle, memory shape, or consumer
+audience than sparse SfM, and trying to put all three in one spec
+makes both consumers and backend authors miserable.
+
+| Excluded | Why | Where it should live |
+|---|---|---|
+| **Dense MVS** (PatchMatch stereo, depth maps, fused dense clouds, normal maps) | Different memory shape (per-image GB-scale outputs vs sparse-cloud MB-scale), different consumers (renderers vs UX-driving pose lookups), different lifecycle (offline batch vs interactive). | A separate `mvsapi` spec, layered on top of an sfmapi `Reconstruction`. |
+| **Mesh / texture generation** (Poisson, Delaunay, texture mapping) | Belongs to a downstream rendering / asset-prep pipeline that consumes both sparse SfM **and** dense MVS. | A separate `meshapi` spec, layered on top of MVS. |
+| **Image segmentation / mask generation** | Masks are an *input* to SfM (consumed by the feature extractor with `MaskSet`), not an output. The pipeline that produces them is a separate concern (SAM, semantic segmentation, custom CNN). sfmapi accepts already-produced masks, doesn't generate them. | A `segmapi` spec or any general-purpose image-segmentation service. The mask wire format that the *consumer* side uses is a future revision item (see §12). |
+| **Image-quality / aesthetic filters** | Not a structural concern of SfM; a pre-pipeline data-prep step (e.g. cull blurry frames, dedupe near-identical views). | A general-purpose image-curation service. sfmapi accepts whatever images you register. |
+
+If a future deployment wants the full sparse → dense → mesh chain
+end-to-end, the recommended pattern is to layer the three spec
+domains: clients hit `sfmapi` for sparse SfM, then call into
+`mvsapi` (with the resulting `Reconstruction.recon_id`) for dense,
+then `meshapi` for surface extraction. Each service stays in its
+own resource-lifecycle and dependency footprint.
+
+---
+
 *Comments, issues, and proposed changes:* file under
-`https://github.com/sfmapi/sfmapi/issues` with the `spec` label.
+`https://github.com/SFMAPI/sfmapi/issues` with the `spec` label.

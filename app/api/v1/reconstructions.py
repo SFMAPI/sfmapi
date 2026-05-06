@@ -40,7 +40,6 @@ def _recon_links(recon_id: str) -> dict[str, Link]:
         "correspondence_graph": Link(
             href=f"/v1/reconstructions/{recon_id}/correspondence_graph.json"
         ),
-        "dense": Link(href=f"/v1/reconstructions/{recon_id}/dense"),
     }
 
 
@@ -339,106 +338,6 @@ async def point_visibility(
     payload = PointVisibilityResponse(point3d_id=point3d_id, observations=body, count=len(body))
     return JSONResponse(
         payload.model_dump(),
-        headers={"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"},
-    )
-
-
-@router.get("/reconstructions/{recon_id}/snapshots/{seq}/dense/index.json")
-async def read_dense_index(
-    recon_id: str,
-    seq: int,
-    request: Request,
-    tenant_id: str = Depends(current_tenant),
-    session: AsyncSession = Depends(get_db),
-) -> Response:
-    """Manifest of dense MVS outputs in this sealed snapshot."""
-    snap_dir = await _resolve_snapshot_dir(session, tenant_id=tenant_id, recon_id=recon_id, seq=seq)
-    target = snap_dir / "dense" / "index.json"
-    if not target.is_file():
-        raise NotFoundError(
-            "dense/index.json not present (the snapshot does not contain dense MVS output)"
-        )
-    etag = file_etag(target)
-    if if_none_match_hit(request, etag):
-        return not_modified(etag)
-    return FileResponse(
-        target,
-        media_type="application/json",
-        headers={"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"},
-    )
-
-
-@router.get("/reconstructions/{recon_id}/snapshots/{seq}/dense/fused.bin")
-async def read_dense_fused(
-    recon_id: str,
-    seq: int,
-    request: Request,
-    tenant_id: str = Depends(current_tenant),
-    session: AsyncSession = Depends(get_db),
-) -> Response:
-    """The fused dense point cloud (sfmapi binary points format)."""
-    snap_dir = await _resolve_snapshot_dir(session, tenant_id=tenant_id, recon_id=recon_id, seq=seq)
-    target = snap_dir / "dense" / "fused.bin"
-    if not target.is_file():
-        raise NotFoundError("dense/fused.bin not present in this snapshot")
-    etag = file_etag(target)
-    if if_none_match_hit(request, etag):
-        return not_modified(etag)
-    return FileResponse(
-        target,
-        media_type="application/x-sfm-points-v1",
-        headers={"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"},
-    )
-
-
-@router.get("/reconstructions/{recon_id}/snapshots/{seq}/dense/depth_maps/{image_name}.bin")
-async def read_depth_map(
-    recon_id: str,
-    seq: int,
-    image_name: str,
-    request: Request,
-    tenant_id: str = Depends(current_tenant),
-    session: AsyncSession = Depends(get_db),
-) -> Response:
-    """Per-image depth map (``application/x-sfm-depth-v1``)."""
-    if "/" in image_name or ".." in image_name:
-        raise NotFoundError("invalid image name")
-    snap_dir = await _resolve_snapshot_dir(session, tenant_id=tenant_id, recon_id=recon_id, seq=seq)
-    target = snap_dir / "dense" / "depth_maps" / f"{image_name}.bin"
-    if not target.is_file():
-        raise NotFoundError(f"depth map for {image_name} not present in this snapshot")
-    etag = file_etag(target)
-    if if_none_match_hit(request, etag):
-        return not_modified(etag)
-    return FileResponse(
-        target,
-        media_type="application/x-sfm-depth-v1",
-        headers={"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"},
-    )
-
-
-@router.get("/reconstructions/{recon_id}/snapshots/{seq}/dense/normal_maps/{image_name}.bin")
-async def read_normal_map(
-    recon_id: str,
-    seq: int,
-    image_name: str,
-    request: Request,
-    tenant_id: str = Depends(current_tenant),
-    session: AsyncSession = Depends(get_db),
-) -> Response:
-    """Per-image normal map (``application/x-sfm-normal-v1``)."""
-    if "/" in image_name or ".." in image_name:
-        raise NotFoundError("invalid image name")
-    snap_dir = await _resolve_snapshot_dir(session, tenant_id=tenant_id, recon_id=recon_id, seq=seq)
-    target = snap_dir / "dense" / "normal_maps" / f"{image_name}.bin"
-    if not target.is_file():
-        raise NotFoundError(f"normal map for {image_name} not present in this snapshot")
-    etag = file_etag(target)
-    if if_none_match_hit(request, etag):
-        return not_modified(etag)
-    return FileResponse(
-        target,
-        media_type="application/x-sfm-normal-v1",
         headers={"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"},
     )
 

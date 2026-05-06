@@ -157,21 +157,6 @@ class SfmBackend(Protocol):
         ``ply | nvm | colmap_text | colmap_bin | nerfstudio |
         gaussian_splatting | instant_ngp | kapture``."""
 
-    def generate_mesh(
-        self,
-        *,
-        sparse_dir: Path,
-        dense_fused_path: Path | None,
-        output_path: Path,
-        method: str,
-        options: dict,
-    ) -> dict:
-        """Generate a mesh from a reconstruction. ``method`` is one of
-        ``poisson | delaunay``. ``dense_fused_path`` is optional —
-        Poisson typically wants the dense fused cloud; Delaunay can
-        run on the sparse model. Returns a
-        :class:`app.schemas.api.scene.MeshSummary`-shaped dict."""
-
     def convert_spherical_to_cubemap(
         self,
         *,
@@ -189,36 +174,6 @@ class SfmBackend(Protocol):
         face_size: int | None = None,
     ) -> dict:
         """Render every panorama into 6 face images."""
-
-    # ---- dense MVS ------------------------------------------------------
-
-    def dense_pipeline(
-        self,
-        *,
-        sparse_dir: Path,
-        image_root: Path,
-        workspace: Path,
-        out_dir: Path,
-        spec: dict,
-    ) -> dict:
-        """Run dense MVS end-to-end and write sfmapi wire-format
-        outputs into ``out_dir``.
-
-        Backend-side responsibilities:
-          - Run undistort + patch_match_stereo + stereo_fusion (or
-            equivalent for non-COLMAP backends).
-          - Emit ``cameras.json`` / ``images.json`` / ``points.bin`` /
-            ... at ``out_dir`` (sparse-model snapshot emit).
-          - Convert per-image depth/normal maps to
-            ``application/x-sfm-depth-v1`` / ``application/x-sfm-normal-v1``
-            under ``out_dir/dense/depth_maps/`` and
-            ``out_dir/dense/normal_maps/``.
-          - Convert the fused dense cloud to
-            ``application/x-sfm-points-v1`` at ``out_dir/dense/fused.bin``.
-          - Write ``out_dir/dense/index.json`` (DenseManifestFile).
-
-        Returns ``{num_depth_maps, fused_points}`` for the worker to
-        propagate into the sealed snapshot summary."""
 
     # ---- retrieval ------------------------------------------------------
 

@@ -190,48 +190,11 @@ def test_parse_points_binary_round_trip_against_server_encoder() -> None:
     assert parsed.records[1].point3d_id == 0xDEADBEEF
 
 
-def test_parse_depth_map_round_trip_against_server_encoder() -> None:
-    erg, _ = _import_generated()
-    import struct as _struct
-
-    from app.schemas.depth_map_binary import encode_depth
-
-    pixels_floats = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
-    pixels = b"".join(_struct.pack("<f", v) for v in pixels_floats)
-    encoded = encode_depth(width=3, height=2, depth_min=0.5, depth_max=3.0, pixels=pixels)
-    parsed = erg.parse_depth_map(encoded)
-    assert parsed.width == 3
-    assert parsed.height == 2
-    assert parsed.depth_min == 0.5
-    assert parsed.depth_max == 3.0
-    assert parsed.pixels == pixels
-
-
-def test_parse_normal_map_round_trip_against_server_encoder() -> None:
-    erg, _ = _import_generated()
-    import struct as _struct
-
-    from app.schemas.depth_map_binary import encode_normal
-
-    pixels = b"".join(_struct.pack("<f", v) for v in [0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
-    encoded = encode_normal(width=2, height=1, pixels=pixels)
-    parsed = erg.parse_normal_map(encoded)
-    assert parsed.width == 2
-    assert parsed.height == 1
-    assert parsed.pixels == pixels
-
-
 def test_parse_points_binary_rejects_bad_magic() -> None:
     erg, _ = _import_generated()
     bad = b"WRONGMAG" + b"\x00" * 64
     with pytest.raises(erg.WireFormatError, match="bad magic"):
         erg.parse_points_binary(bad)
-
-
-def test_parse_depth_map_rejects_short_buffer() -> None:
-    erg, _ = _import_generated()
-    with pytest.raises(erg.WireFormatError, match="too small"):
-        erg.parse_depth_map(b"")
 
 
 def _stage_submit(base: str, dataset_id: str) -> dict:

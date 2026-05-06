@@ -98,13 +98,6 @@ OPTIONAL_CAPABILITIES: tuple[str, ...] = (
     "export.gaussian_splatting",
     "export.instant_ngp",
     "export.kapture",
-    # Dense MVS
-    "dense.patch_match_stereo",
-    "dense.stereo_fusion",
-    # Mesh + texture
-    "mesh.poisson",
-    "mesh.delaunay",
-    "mesh.texture",
     # Retrieval / similarity
     "similarity.dhash",
     "similarity.vlad",

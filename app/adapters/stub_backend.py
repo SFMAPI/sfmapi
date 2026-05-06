@@ -86,9 +86,6 @@ class StubBackend:
     def render_spherical_cubemap_images(self, **_: Any) -> dict:
         raise CapabilityUnavailableError(capability="spherical.render_cubemap")
 
-    def dense_pipeline(self, **_: Any) -> dict:
-        raise CapabilityUnavailableError(capability="dense.patch_match_stereo")
-
     def build_vlad_index(self, **_: Any) -> dict:
         raise CapabilityUnavailableError(capability="similarity.vlad")
 
@@ -97,9 +94,6 @@ class StubBackend:
 
     def apply_sim3(self, **_: Any) -> dict:
         raise CapabilityUnavailableError(capability="georegister.sim3")
-
-    def generate_mesh(self, **_: Any) -> dict:
-        raise CapabilityUnavailableError(capability="mesh.poisson")
 
     def merge_reconstructions(self, **_: Any) -> dict:
         raise CapabilityUnavailableError(capability="recon.merge")

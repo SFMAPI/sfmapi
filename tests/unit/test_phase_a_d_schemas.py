@@ -1,9 +1,9 @@
 """Schema tests for Phase A-D additions.
 
-Verifies the new pluggable specs / mesh schemas / IMU + timestamps
-all round-trip cleanly. The pair-selection (``PairsSpec``) and
-per-pair matcher (``MatcherSpec``) shapes are the canonical AIP-202
-split — the legacy combined ``MatchesSpec`` was retired.
+Verifies the pluggable specs / pose priors / IMU schemas all
+round-trip cleanly. The pair-selection (``PairsSpec``) and per-pair
+matcher (``MatcherSpec``) shapes are the canonical AIP-202 split —
+the legacy combined ``MatchesSpec`` was retired.
 """
 
 from __future__ import annotations
@@ -12,8 +12,6 @@ import pytest
 
 from app.schemas.api.scene import (
     ImuMeasurement,
-    MeshFile,
-    MeshSummary,
     PosePrior,
     Rigid3,
     Rotation,
@@ -78,33 +76,6 @@ def test_pairs_and_matcher_specs_round_trip_independently() -> None:
     assert matcher.type == "nn-ratio"
     assert matcher.cross_check is False
     assert matcher.max_ratio == 0.6
-
-
-# ---- Phase B: mesh ------------------------------------------------------
-
-
-def test_mesh_summary_round_trip() -> None:
-    s = MeshSummary(
-        method="poisson",
-        num_vertices=12345,
-        num_faces=24680,
-        has_vertex_colors=True,
-        has_vertex_normals=False,
-    )
-    parsed = MeshSummary.model_validate_json(s.model_dump_json())
-    assert parsed.method == "poisson"
-    assert parsed.num_vertices == 12345
-    assert parsed.num_faces == 24680
-    assert parsed.has_vertex_colors is True
-
-
-def test_mesh_file_can_carry_url() -> None:
-    f = MeshFile(
-        summary=MeshSummary(method="delaunay", num_vertices=1, num_faces=1),
-        mesh_url="/v1/reconstructions/abc/snapshots/3/mesh.ply",
-    )
-    body = f.model_dump()
-    assert body["mesh_url"].startswith("/v1/")
 
 
 # ---- Phase C: featuremetric BA ----------------------------------------

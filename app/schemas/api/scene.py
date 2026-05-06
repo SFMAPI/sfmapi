@@ -246,82 +246,6 @@ class TwoViewGeometry(BaseModel):
     inlier_matches: list[tuple[int, int]] = Field(default_factory=list)
 
 
-class DepthMapInfo(BaseModel):
-    """Index entry for one image's depth map in a sealed dense snapshot.
-
-    Clients fetch the actual pixels from the corresponding
-    ``dense/depth_maps/{image_name}.bin`` URL (binary format
-    ``application/x-sfm-depth-v1`` — see
-    :mod:`app.schemas.depth_map_binary`).
-    """
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    image_id: int
-    image_name: str
-    width: int
-    height: int
-    depth_min: float
-    depth_max: float
-    has_normal_map: bool = False
-
-
-class DenseSummary(BaseModel):
-    """High-level stats for a dense MVS run."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    num_images: int
-    num_depth_maps: int
-    num_normal_maps: int
-    fused_points: int
-    bbox_min: tuple[float, float, float] | None = None
-    bbox_max: tuple[float, float, float] | None = None
-
-
-class DenseManifestFile(BaseModel):
-    """Wire shape of ``dense/index.json`` inside a sealed snapshot."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    summary: DenseSummary
-    depth_maps: list[DepthMapInfo] = Field(default_factory=list)
-
-
-# ---- mesh ---------------------------------------------------------------
-
-
-MeshMethod = Literal["poisson", "delaunay"]
-"""Mesh-generation algorithm. Capability flags are
-``mesh.poisson`` and ``mesh.delaunay``."""
-
-
-class MeshSummary(BaseModel):
-    """Per-mesh stats — included in the snapshot's ``mesh.json``
-    sidecar so clients can decide whether to download the full mesh."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    method: MeshMethod
-    num_vertices: int
-    num_faces: int
-    has_vertex_colors: bool = False
-    has_vertex_normals: bool = False
-    bbox_min: tuple[float, float, float] | None = None
-    bbox_max: tuple[float, float, float] | None = None
-
-
-class MeshFile(BaseModel):
-    """Wire shape of the snapshot's ``mesh.json`` index. The actual
-    mesh bytes live next to it as ``mesh.ply`` (binary little-endian
-    PLY — universally readable by Open3D / MeshLab / Blender)."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    summary: MeshSummary
-    mesh_url: str | None = None  # populated by the API at read-time
-
-
 class CorrespondencePair(BaseModel):
     """Raw (pre-verification) matches between two images.
 
@@ -449,9 +373,6 @@ __all__ = [
     "CamerasFile",
     "CorrespondenceGraphFile",
     "CorrespondencePair",
-    "DenseManifestFile",
-    "DenseSummary",
-    "DepthMapInfo",
     "Frame",
     "FramesFile",
     "GpsCoord",
@@ -459,9 +380,6 @@ __all__ = [
     "ImagesFile",
     "ImuMeasurement",
     "LocalizationResult",
-    "MeshFile",
-    "MeshMethod",
-    "MeshSummary",
     "Point2D",
     "PoseGraph",
     "PoseGraphEdge",

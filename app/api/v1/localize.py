@@ -34,15 +34,6 @@ class LocalizationRequest(BaseModel):
     sift: dict | None = None
 
 
-class MeshRequest(BaseModel):
-    """Request body for ``POST /v1/reconstructions/{rid}/mesh``."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    method: str = Field(default="poisson", pattern="^(poisson|delaunay)$")
-    options: dict = Field(default_factory=dict)
-
-
 @router.post(
     "/localize",
     status_code=status.HTTP_202_ACCEPTED,
@@ -118,54 +109,3 @@ async def to_cubemap(
     return accepted_response(JobAcceptedResponse(job_id=job_id, recon_id=recon_id))
 
 
-@router.post(
-    "/mesh",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=JobAcceptedResponse,
-)
-async def mesh(
-    recon_id: str,
-    body: MeshRequest = MeshRequest(),
-    tenant_id: str = Depends(current_tenant),
-    session: AsyncSession = Depends(get_db),
-) -> JSONResponse:
-    """Generate a triangulated mesh from the reconstruction.
-
-    Poisson surface reconstruction is preferred when a dense fused
-    cloud is present; Delaunay can run on the sparse model alone.
-    Output is a sealed snapshot containing ``mesh.ply`` (binary
-    little-endian PLY) and ``mesh.json`` (the manifest)."""
-    job_id, _tasks = await sfm_stage_service.submit_mesh(
-        session,
-        tenant_id=tenant_id,
-        recon_id=recon_id,
-        method=body.method,
-        options=body.options,
-    )
-    return accepted_response(
-        JobAcceptedResponse(job_id=job_id, recon_id=recon_id, method=body.method)
-    )
-
-
-@router.post(
-    "/dense",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=JobAcceptedResponse,
-)
-async def dense(
-    recon_id: str,
-    tenant_id: str = Depends(current_tenant),
-    session: AsyncSession = Depends(get_db),
-) -> JSONResponse:
-    """Run dense multi-view stereo against the reconstruction.
-
-    Pipeline: undistort_images → patch_match_stereo (CUDA) →
-    stereo_fusion. Outputs are sealed as a fresh snapshot containing
-    a ``dense/`` subdirectory: ``index.json``, ``fused.bin`` (dense
-    point cloud), ``depth_maps/<image_name>.bin``, and optionally
-    ``normal_maps/<image_name>.bin``.
-    """
-    job_id, _tasks = await sfm_stage_service.submit_dense(
-        session, tenant_id=tenant_id, recon_id=recon_id
-    )
-    return accepted_response(JobAcceptedResponse(job_id=job_id, recon_id=recon_id))

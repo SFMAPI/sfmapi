@@ -65,8 +65,6 @@ from .matcher_spec_type import MatcherSpecType
 from .matches_request import MatchesRequest
 from .merge_request import MergeRequest
 from .merge_request_sim_3_aligners_type_0_item import MergeRequestSim3AlignersType0Item
-from .mesh_request import MeshRequest
-from .mesh_request_options import MeshRequestOptions
 from .one_shot_features_payload import OneShotFeaturesPayload
 from .one_shot_features_response import OneShotFeaturesResponse
 from .one_shot_features_response_spec import OneShotFeaturesResponseSpec
@@ -197,8 +195,6 @@ __all__ = (
     "MatchesRequest",
     "MergeRequest",
     "MergeRequestSim3AlignersType0Item",
-    "MeshRequest",
-    "MeshRequestOptions",
     "OneShotFeaturesPayload",
     "OneShotFeaturesResponse",
     "OneShotFeaturesResponseSpec",

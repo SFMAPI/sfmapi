@@ -44,17 +44,17 @@ async def test_capabilities_includes_all_core_flags(conf_client) -> None:
 async def test_capability_unavailable_returns_501_with_canonical_name(conf_client) -> None:
     """Optional endpoints whose capability is False **MUST** return
     501 with the canonical capability name in the problem+json
-    ``capability`` field. We probe ``dense.patch_match_stereo`` —
-    a heavy capability that's unlikely to be advertised by a stripped-
-    down deployment. If it IS advertised, the 404 path is also valid
-    (recon doesn't exist)."""
+    ``capability`` field. We probe ``similarity.vlad`` — a feature
+    that requires backend support. The stub advertises nothing; the
+    501 path is the expected one. If a real backend implements it,
+    the 404 path is also valid (the underlying dataset doesn't
+    exist)."""
     feats = (await conf_client.get("/v1/capabilities")).json().get("features", {})
-    if feats.get("dense.patch_match_stereo"):
-        pytest.skip("backend advertises dense.patch_match_stereo; probe doesn't apply")
-    resp = await conf_client.post("/v1/reconstructions/01HGHOST00000000000000000A/dense")
+    if feats.get("similarity.vlad"):
+        pytest.skip("backend advertises similarity.vlad; probe doesn't apply")
+    resp = await conf_client.post(
+        "/v1/datasets/01HGHOST00000000000000000A/similarity:build?strategy=vlad",
+    )
     assert resp.status_code == 501, resp.text
     body = resp.json()
-    assert body.get("capability") in (
-        "dense.patch_match_stereo",
-        "dense.stereo_fusion",
-    )
+    assert body.get("capability") == "similarity.vlad"
