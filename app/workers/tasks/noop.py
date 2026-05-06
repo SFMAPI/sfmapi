@@ -6,8 +6,10 @@ import time
 
 from app.db.models import Task
 from app.workers._task_io import read_extra
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("noop")
 def run(task: Task) -> dict:
     sleep_for = read_extra(task, "sleep_for", 0.0)
     if sleep_for:

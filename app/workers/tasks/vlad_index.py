@@ -25,8 +25,10 @@ from app.db.models import Task
 from app.storage.vlad import write_index as _write_vlad_index
 from app.workers._materialize import resolve_image_path
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("vlad_index")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     materialization = inputs["materialization"]

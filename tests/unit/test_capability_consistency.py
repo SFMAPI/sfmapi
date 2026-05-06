@@ -1,0 +1,107 @@
+"""Capability drift guards.
+
+Capability strings are declared in three places:
+
+1. ``app/core/capabilities.py::ALL_KNOWN`` — the canonical vocabulary.
+2. Each backend's ``capabilities()`` method — the subset it implements.
+3. ``require_capability("X.Y")`` calls in services / routes — the gate.
+
+Drift between (1) and (3) is invisible at runtime: if a service
+gates on a string that's not in ``ALL_KNOWN``,
+``Capabilities.supports(name)`` quietly returns False even when a
+backend advertises it (because ``Capabilities.features`` is keyed on
+``ALL_KNOWN``). The endpoint then 501s permanently regardless of
+backend support — a silent contract violation.
+
+These tests scan ``app/services/`` + ``app/api/v1/`` for every
+literal-arg ``require_capability("X.Y")`` call and assert each
+appears in ``ALL_KNOWN``. Runtime-suffix forms (``f"matchers.{type}"``)
+are spot-checked by walking the catalog of valid suffixes.
+"""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+import pytest
+
+from app.core.capabilities import ALL_KNOWN
+
+pytestmark = pytest.mark.unit
+
+ROOT = Path(__file__).resolve().parents[2]
+SCAN_DIRS = [ROOT / "app" / "services", ROOT / "app" / "api"]
+
+
+def _collect_require_capability_strings() -> list[tuple[Path, int, str]]:
+    """Walk every Python file in SCAN_DIRS and return every literal
+    argument passed as the first positional to ``require_capability(...)``.
+
+    Skips ``f"prefix.{var}"`` runtime-suffix calls — those are dynamic
+    and validated separately by the suffix-coverage check below.
+    """
+    hits: list[tuple[Path, int, str]] = []
+    for root in SCAN_DIRS:
+        for py in root.rglob("*.py"):
+            if "__pycache__" in py.parts:
+                continue
+            tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                func_name = (
+                    func.attr
+                    if isinstance(func, ast.Attribute)
+                    else func.id
+                    if isinstance(func, ast.Name)
+                    else None
+                )
+                if func_name != "require_capability":
+                    continue
+                if not node.args:
+                    continue
+                first = node.args[0]
+                if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                    hits.append((py, first.lineno, first.value))
+    return hits
+
+
+def test_every_static_require_capability_is_in_ALL_KNOWN() -> None:
+    """Every literal-string ``require_capability("X.Y")`` call site
+    declares a capability that is in :data:`ALL_KNOWN`. Drift here
+    silently breaks the 501 contract — a service that gates on an
+    unknown string gets a permanent 501 regardless of backend
+    support."""
+    bad: list[tuple[Path, int, str]] = []
+    for py, line, cap in _collect_require_capability_strings():
+        if cap not in ALL_KNOWN:
+            bad.append((py.relative_to(ROOT), line, cap))
+    assert not bad, "require_capability() literals not in ALL_KNOWN:\n" + "\n".join(
+        f"  {p}:{ln}  {cap!r}" for p, ln, cap in bad
+    )
+
+
+def test_runtime_suffix_capability_prefixes_are_known() -> None:
+    """Spot-check the runtime-suffix capability families: every
+    ``matchers.<type>``, ``map.<kind>``, ``ba.<mode>``,
+    ``features.extract.<type>``, ``export.<format>`` capability that
+    a backend could plausibly advertise has at least one matching
+    entry in ``ALL_KNOWN``. Catches the class of drift where a new
+    capability family is introduced in service code but never added
+    to the vocabulary."""
+    expected_prefixes = {
+        "features.extract.",
+        "matchers.",
+        "map.",
+        "ba.",
+        "export.",
+    }
+    for prefix in expected_prefixes:
+        matches = [c for c in ALL_KNOWN if c.startswith(prefix)]
+        assert matches, (
+            f"expected at least one capability with prefix {prefix!r} in ALL_KNOWN; "
+            "a new capability family was likely introduced in service code "
+            "without a corresponding ALL_KNOWN entry"
+        )

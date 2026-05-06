@@ -15,8 +15,10 @@ from app.db.models import Task
 from app.storage.snapshot_emit import emit_snapshot_files
 from app.storage.snapshots import SnapshotStore
 from app.workers._task_io import read_inputs
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("to_cubemap")
 def run(task: Task) -> dict:
     inputs = read_inputs(task)
     rec_root = Path(inputs["reconstruction_root"])

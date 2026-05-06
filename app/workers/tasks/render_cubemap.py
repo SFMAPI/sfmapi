@@ -20,8 +20,10 @@ from app.core.paths import Paths
 from app.db.models import Task
 from app.workers._materialize import materialize_image_set
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("render_cubemap")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     materialization = inputs["materialization"]

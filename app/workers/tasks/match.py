@@ -15,8 +15,10 @@ from app.adapters.registry import get_backend
 from app.db.models import Task
 from app.storage.correspondence_emit import export_correspondence_graph
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("match")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     db_path = Path(inputs["database_path"])

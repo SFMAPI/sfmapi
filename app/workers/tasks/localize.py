@@ -21,6 +21,7 @@ from app.core.paths import Paths
 from app.db.models import Task
 from app.storage.blobs import get_blob_store
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
 def _materialize_query(blob_sha: str | None, query_path: str | None, stage: Path) -> Path:
@@ -48,6 +49,7 @@ def _materialize_query(blob_sha: str | None, query_path: str | None, stage: Path
     raise ValidationError("localize: blob_sha or query_path is required")
 
 
+@task_handler("localize")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     sparse_dir = Path(inputs["sparse_dir"])

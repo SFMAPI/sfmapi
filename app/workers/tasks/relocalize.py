@@ -7,8 +7,10 @@ from pathlib import Path
 from app.adapters.registry import get_backend
 from app.db.models import Task
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("relocalize")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     return get_backend().relocalize(

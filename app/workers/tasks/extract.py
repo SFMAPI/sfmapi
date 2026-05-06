@@ -22,6 +22,7 @@ from app.core.paths import Paths
 from app.db.models import Task
 from app.workers._materialize import materialize_image_set
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
 def _materialize(task: Task, materialization: dict, paths: Paths) -> tuple[Path, list[str]]:
@@ -30,6 +31,7 @@ def _materialize(task: Task, materialization: dict, paths: Paths) -> tuple[Path,
     return materialize_image_set(materialization, stage)
 
 
+@task_handler("extract")
 def run(task: Task) -> dict:
     s = get_settings()
     paths = Paths(s)

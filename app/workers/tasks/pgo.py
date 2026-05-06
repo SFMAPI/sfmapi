@@ -8,8 +8,10 @@ from app.adapters.registry import get_backend
 from app.db.models import Task
 from app.storage.pose_graph_emit import emit_pose_graph_file
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("pgo")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     out_path = Path(inputs["output_path"])

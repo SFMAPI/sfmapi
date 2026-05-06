@@ -9,8 +9,10 @@ from app.adapters.registry import get_backend
 from app.db.models import Task
 from app.storage.two_view_emit import export_two_view_geometries
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("verify")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     db_path = Path(inputs["database_path"])

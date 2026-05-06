@@ -45,48 +45,27 @@ WORKER_ID: str = os.environ.get("SFMAPI_WORKER_ID") or new_id()
 
 def _build_handlers() -> dict[str, Callable[..., Any]]:
     """Imported lazily so callers that never invoke a handler (lifespan,
-    health checks) don't pay the per-task module load."""
-    from app.workers.tasks import (
-        ba,
-        cubemap,
-        export,
-        extract,
-        georegister,
-        kapture_import,
-        localize,
-        match,
-        merge_recons,
-        noop,
-        pgo,
-        relocalize,
-        render_cubemap,
-        triangulate,
-        verify,
-        video_frames,
-        vlad_index,
-    )
-    from app.workers.tasks import map as map_task
+    health checks) don't pay the per-task module load.
 
-    return {
-        "noop": noop.run,
-        "extract": extract.run,
-        "match": match.run,
-        "verify": verify.run,
-        "map": map_task.run,
-        "ba": ba.run,
-        "triangulate": triangulate.run,
-        "relocalize": relocalize.run,
-        "pgo": pgo.run,
-        "export": export.run,
-        "vlad_index": vlad_index.run,
-        "localize": localize.run,
-        "georegister": georegister.run,
-        "to_cubemap": cubemap.run,
-        "render_cubemap": render_cubemap.run,
-        "merge_recons": merge_recons.run,
-        "video_frames": video_frames.run,
-        "kapture_import": kapture_import.run,
-    }
+    Auto-discovers handlers via the ``@task_handler`` decorator —
+    every public submodule under ``app.workers.tasks`` is imported
+    once, which fires its decorator and registers its ``run``
+    function. Adding a new task is now: (1) write the module with a
+    decorated ``run``, (2) optionally add a capability + spec entry.
+    No dispatcher edit, no chance of an "imported but forgot the
+    dict entry" drift mode.
+    """
+    import importlib
+    import pkgutil
+
+    from app.workers import tasks
+    from app.workers.tasks._registry import get_registered
+
+    for mod_info in pkgutil.iter_modules(tasks.__path__):
+        if mod_info.name.startswith("_"):
+            continue
+        importlib.import_module(f"app.workers.tasks.{mod_info.name}")
+    return get_registered()
 
 
 _HANDLERS_CACHE: dict[str, Callable[..., Any]] | None = None

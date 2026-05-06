@@ -25,6 +25,7 @@ from app.db.models import Task
 from app.storage.snapshot_emit import emit_snapshot_files
 from app.storage.snapshots import SnapshotStore
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
 def _num_reg_images(rec: Any) -> int:
@@ -34,6 +35,7 @@ def _num_reg_images(rec: Any) -> int:
     return int(nr() if callable(nr) else nr)
 
 
+@task_handler("map")
 def run(task: Task) -> dict:
     paths = Paths(get_settings())
     inputs, spec = read_state(task)

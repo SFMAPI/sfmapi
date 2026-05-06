@@ -13,8 +13,10 @@ from app.core.errors import ValidationError
 from app.db.models import Task
 from app.storage.snapshots import SnapshotStore
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("merge_recons")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     target_root = Path(inputs["target_reconstruction_root"])

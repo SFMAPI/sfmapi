@@ -17,6 +17,7 @@ from pathlib import Path
 from app.core.errors import ValidationError
 from app.db.models import Task
 from app.workers._task_io import read_inputs
+from app.workers.tasks._registry import task_handler
 
 
 def _parse_kapture_sensors(sensors_path: Path) -> list[dict]:
@@ -75,6 +76,7 @@ def _parse_kapture_records(records_path: Path) -> list[dict]:
     return out
 
 
+@task_handler("kapture_import")
 def run(task: Task) -> dict:
     inputs = read_inputs(task)
     archive_path = Path(inputs["archive_path"])

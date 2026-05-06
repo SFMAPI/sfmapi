@@ -17,8 +17,10 @@ from app.adapters.registry import get_backend
 from app.core.capabilities import require as require_capability
 from app.db.models import Task
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("ba")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     mode = (spec.get("mode") or "standard").lower()

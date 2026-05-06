@@ -16,8 +16,10 @@ from pathlib import Path
 from app.core.errors import CapabilityUnavailableError, ValidationError
 from app.db.models import Task
 from app.workers._task_io import read_state
+from app.workers.tasks._registry import task_handler
 
 
+@task_handler("video_frames")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     video_path = Path(inputs["video_path"])
