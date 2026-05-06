@@ -460,14 +460,19 @@ struct HealthResponse {
   std::string status;
 };
 
+struct BackendVersion {
+  std::string name;
+  std::string version;
+  std::string vendor;
+  std::map<std::string, std::string> runtime_versions;
+};
+
 struct VersionResponse {
   std::string sfmapi;
-  bool pycolmap_available = false;
-  std::string colmap_sha;
-  std::string baxx_sha;
-  std::string cudss_ver;
-  std::string cuda_arch;
-  std::string sam_model_sha;
+  // Empty optional when no backend is registered. We use std::optional
+  // here so a default-constructed VersionResponse round-trips through
+  // the decoder cleanly.
+  std::optional<BackendVersion> backend;
 };
 
 struct ApiKey {

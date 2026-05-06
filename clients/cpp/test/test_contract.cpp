@@ -95,9 +95,8 @@ int main() {
   if (HasFixture(dir, "version")) {
     auto v = sfmapi::Client::ParseVersionResponse(FixtureAsResp(dir / "version.json"));
     CHECK(!v.sfmapi.empty(), "version.sfmapi non-empty");
-    std::cout << "  version OK (sfmapi=" << v.sfmapi
-              << ", pycolmap_available="
-              << (v.pycolmap_available ? "true" : "false") << ")\n";
+    std::cout << "  version OK (sfmapi=" << v.sfmapi << ", backend="
+              << (v.backend ? v.backend->name : "(none)") << ")\n";
   }
 
   // ----- project_get / project_create --------------------------------

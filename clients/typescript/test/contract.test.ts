@@ -46,7 +46,11 @@ describe.skipIf(!haveFixtures)("contract: TS SDK decodes Python fixtures", () =>
   it("version body has expected runtime fields", () => {
     const v = load<VersionResponse>("version");
     expect(v.sfmapi).toBeTruthy();
-    expect(typeof v.pycolmap_available).toBe("boolean");
+    // `backend` is optional — present when a backend is registered.
+    if (v.backend) {
+      expect(typeof v.backend.name).toBe("string");
+      expect(typeof v.backend.version).toBe("string");
+    }
   });
 
   it("project_get and project_create are Project-shaped", () => {

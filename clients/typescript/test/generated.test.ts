@@ -44,7 +44,10 @@ describe.skipIf(!haveFixtures)("contract: generated TS types decode fixtures", (
   it("VersionResponse decodes", () => {
     const v = load<VersionResponse>("version");
     expect(v.sfmapi).toBeTruthy();
-    expect(typeof v.pycolmap_available).toBe("boolean");
+    if (v.backend) {
+      expect(typeof v.backend.name).toBe("string");
+      expect(typeof v.backend.version).toBe("string");
+    }
   });
 
   it("SpecResponse decodes", () => {

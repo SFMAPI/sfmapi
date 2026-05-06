@@ -504,7 +504,9 @@ void TestResourcePodStructsCompile() {
   sfmapi::HealthResponse hr;
   hr.status = "ok";
   sfmapi::VersionResponse vr;
-  vr.pycolmap_available = false;
+  vr.sfmapi = "0.0.1";
+  // backend is std::optional<BackendVersion>; default-constructed
+  // VersionResponse leaves it unset.
   assert(p.project_id == "01HG");
   assert(d.is_spherical);
   assert(img.byte_size == 1024);

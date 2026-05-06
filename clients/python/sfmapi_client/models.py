@@ -113,7 +113,7 @@ class BatchCreateImagesResponse(_Base):
     """AIP-231 batch-create response — created resources in
     request-order."""
 
-    images: list["Image"] = Field(default_factory=list)
+    images: list[Image] = Field(default_factory=list)
 
 
 class Image(_Base):

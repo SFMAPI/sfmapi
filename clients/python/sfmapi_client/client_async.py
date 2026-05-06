@@ -14,13 +14,13 @@ from sfmapi_client.errors import raise_for_response
 from sfmapi_client.models import (
     ApiKey,
     ApiKeyCreated,
+    BatchCreateImagesRequest,
+    BatchCreateImagesResponse,
     Capabilities,
     CorrespondenceGraphFile,
     Dataset,
     DatasetPatch,
     DenseManifestFile,
-    BatchCreateImagesRequest,
-    BatchCreateImagesResponse,
     FeaturesSpec,
     Image,
     ImageObservation,
@@ -351,11 +351,10 @@ class AsyncSfmApiClient:
             data: list[str] = []
             async for line in resp.aiter_lines():
                 if line.startswith("data: "):
-                    data.append(line[len("data: "):])
-                elif line == "":
-                    if data:
-                        yield _json.loads("\n".join(data))
-                        data = []
+                    data.append(line[len("data: ") :])
+                elif line == "" and data:
+                    yield _json.loads("\n".join(data))
+                    data = []
 
     # reconstructions / submodels --------------------------------------
 

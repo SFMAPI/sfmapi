@@ -71,7 +71,7 @@ def raise_for_response(resp: httpx.Response) -> None:
        "application/json" in resp.headers.get("content-type", ""):
         try:
             problem = resp.json()
-        except Exception:  # noqa: BLE001 — body wasn't JSON
+        except Exception:
             problem = {"title": resp.reason_phrase, "status": resp.status_code}
     msg = problem.get("detail") or problem.get("title") or resp.text or resp.reason_phrase
     cls = _STATUS_MAP.get(resp.status_code, SfmApiError)

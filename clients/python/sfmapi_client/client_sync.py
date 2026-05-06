@@ -28,13 +28,13 @@ from sfmapi_client.errors import raise_for_response
 from sfmapi_client.models import (
     ApiKey,
     ApiKeyCreated,
+    BatchCreateImagesRequest,
+    BatchCreateImagesResponse,
     Capabilities,
     CorrespondenceGraphFile,
     Dataset,
     DatasetPatch,
     DenseManifestFile,
-    BatchCreateImagesRequest,
-    BatchCreateImagesResponse,
     FeaturesSpec,
     Image,
     ImageObservation,
@@ -377,13 +377,12 @@ class SfmApiClient:
             data: list[str] = []
             for line in resp.iter_lines():
                 if line.startswith("data: "):
-                    data.append(line[len("data: "):])
-                elif line == "":
-                    if data:
-                        import json as _json
+                    data.append(line[len("data: ") :])
+                elif line == "" and data:
+                    import json as _json
 
-                        yield _json.loads("\n".join(data))
-                        data = []
+                    yield _json.loads("\n".join(data))
+                    data = []
 
     # ---- reconstructions / submodels ----
 

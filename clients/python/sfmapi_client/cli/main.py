@@ -13,7 +13,6 @@ Common flags (set on every group):
 
 from __future__ import annotations
 
-import os
 import sys
 from typing import Any
 
@@ -94,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         click.secho("interrupted", fg="yellow", err=True)
         return 130
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         click.secho(f"unexpected error: {e}", fg="red", err=True)
         return 1
     return 0

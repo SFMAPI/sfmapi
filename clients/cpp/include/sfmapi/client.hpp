@@ -960,15 +960,20 @@ class Client {
     auto j = Json::Parse(std::string(resp.body.begin(), resp.body.end()));
     sfmapi::VersionResponse out;
     if (j.contains("sfmapi")) out.sfmapi = j["sfmapi"].as_string();
-    if (j.contains("pycolmap_available")) {
-      out.pycolmap_available = j["pycolmap_available"].as_bool();
-    }
-    if (j.contains("colmap_sha")) out.colmap_sha = j["colmap_sha"].as_string();
-    if (j.contains("baxx_sha")) out.baxx_sha = j["baxx_sha"].as_string();
-    if (j.contains("cudss_ver")) out.cudss_ver = j["cudss_ver"].as_string();
-    if (j.contains("cuda_arch")) out.cuda_arch = j["cuda_arch"].as_string();
-    if (j.contains("sam_model_sha")) {
-      out.sam_model_sha = j["sam_model_sha"].as_string();
+    if (j.contains("backend") && !j["backend"].is_null()) {
+      auto& jb = j["backend"];
+      sfmapi::BackendVersion bv;
+      if (jb.contains("name")) bv.name = jb["name"].as_string();
+      if (jb.contains("version")) bv.version = jb["version"].as_string();
+      if (jb.contains("vendor") && !jb["vendor"].is_null()) {
+        bv.vendor = jb["vendor"].as_string();
+      }
+      if (jb.contains("runtime_versions")) {
+        for (auto& kv : jb["runtime_versions"].as_object()) {
+          bv.runtime_versions[kv.first] = kv.second.as_string();
+        }
+      }
+      out.backend = bv;
     }
     return out;
   }
