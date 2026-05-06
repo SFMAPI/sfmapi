@@ -1,56 +1,59 @@
 # Architecture
 
-`sfmapi` separates a thin always-on **web tier** from one or more
-**GPU workers**. The web tier never imports `pycolmap`, `torch`, or any
-heavy ML dep — those live in worker subprocesses behind the
-`app/adapters/` boundary. State lives in three durable stores: a SQL DB
-(SQLite or Postgres), a content-addressed blob store on disk, and a
-sealed-snapshot directory tree per reconstruction.
+sfmapi separates a thin always-on **web tier** from one or more
+**workers** that drive a registered SfM backend. The web tier never
+imports an engine library (pycolmap, torch, segment_anything, ...) —
+those live in backend packages outside this repo, accessed only
+through the `SfmBackend` Protocol behind the `app/adapters/`
+boundary.
+
+State lives in three durable stores: a SQL DB (SQLite or Postgres),
+a content-addressed blob store, and a sealed-snapshot directory
+tree per reconstruction.
 
 ```{mermaid}
 flowchart LR
     subgraph Client
-        SDK[sfmapi-client]
+        SDK[Generated SDKs<br/>Python · TypeScript · C++]
         UI[CLI / curl / browser]
     end
 
-    subgraph Web tier
-        FastAPI[FastAPI app]
+    subgraph Web["Web tier (in-process)"]
+        API[FastAPI app]
+        Inline[Inline queue<br/>standalone mode]
+        API --- Inline
+    end
+
+    subgraph WorkerPkg["Backend package<br/>(separate repo)"]
+        Backend["SfmBackend impl<br/>e.g. ColmapModBackend"]
+        Backend --> Engine["pycolmap / OpenSfM /<br/>hloc / custom fork"]
     end
 
     subgraph Persistence
-        DB[(SQLite or Postgres)]
+        DB[(SQLite / Postgres)]
         Blobs[(blobs/&lt;sha&gt;)]
         WS[(workspaces/&lt;tenant&gt;/...)]
     end
 
-    subgraph Queue
+    subgraph Multi["Multi-instance only (optional)"]
         Redis[(Redis)]
+        Sup["Supervisor + workers<br/>per GPU"]
     end
 
-    subgraph "Worker host(s)"
-        Sup[Supervisor (per GPU)]
-        Sub1[Subprocess]
-        Sub2[Subprocess]
-        Sup --> Sub1
-        Sup --> Sub2
-        Sub1 --> Pycolmap[pycolmap / SAM]
-    end
+    SDK --> API
+    UI --> API
+    API -->|writes| DB
+    API -->|writes| Blobs
+    API -->|reads sealed| WS
 
-    SDK --> FastAPI
-    UI --> FastAPI
-    FastAPI -->|writes| DB
-    FastAPI -->|writes| Blobs
-    FastAPI -->|enqueue| Redis
-    FastAPI -->|reads sealed| WS
-
-    Sup -->|polls + leases| DB
-    Sup -->|consumes| Redis
-    Sub1 -->|reads bytes| Blobs
-    Sub1 -->|writes db.db, sparse/| WS
-    Sub1 -->|writes snapshots/{seq}/| WS
-    Sub1 -->|writes events.jsonl| WS
-    FastAPI -->|tails events.jsonl| WS
+    Inline -.->|standalone| Backend
+    Sup -.->|polls + leases| DB
+    Sup -.->|consumes| Redis
+    Sup -.-> Backend
+    Backend -->|reads bytes| Blobs
+    Backend -->|writes snapshots/{seq}/| WS
+    Backend -->|writes events.jsonl| WS
+    API -->|tails events.jsonl| WS
 ```
 
 ## Boundaries
@@ -60,12 +63,12 @@ flowchart LR
 | `app/api/` | only `app.core`, `app.db`, `app.schemas`, `app.services`, `app.orchestrator` | web process. Must start in <2s. |
 | `app/services/` | `app.db`, `app.storage`, `app.orchestrator` | tenant-scoped CRUD, transactions, DAG construction |
 | `app/orchestrator/` | `app.db`, `app.workers.runner` | DAG, lease, scheduler, recipes, resume |
-| `app/workers/` | `app.adapters` only | runs in subprocess; per-task lease + heartbeat |
-| `app/adapters/` | `pycolmap`, `torch`, `cv2`, ... | **only** layer that touches heavy deps |
+| `app/workers/` | `app.adapters` only | per-task lease + heartbeat; calls backend through the registry |
+| `app/adapters/` | `SfmBackend` Protocol + registry only | no engine imports — engines ship in their own package |
 
 A test (`tests/unit/test_app_starts.py`) enforces that importing
-`app.main` does not pull in `pycolmap`, `torch`, `cv2`, or
-`segment_anything`. CI fails if any of those leak.
+`app.main` does not pull in any engine library (pycolmap, torch,
+cv2, segment_anything, ...). CI fails if any of those leak.
 
 ## Why a custom DAG instead of using ARQ chains
 
@@ -87,11 +90,13 @@ lives in `task` rows and `depends_on_json`.
 
 ## Why sealed snapshots
 
-pycolmap mutates `database.db` and `sparse/` in place. Reading those
-while the worker is writing them produces torn protobuf and sometimes
-SIGSEGV. The worker periodically copies `sparse/` to
-`snapshots/.tmp_{seq}/` then `os.replace`s the directory atomically;
-the API only ever serves data from sealed `snapshots/{seq}/` dirs.
+Most SfM engines mutate their working state (a SQLite DB, sparse
+reconstruction directory, ...) in place. Reading those while the
+worker writes them produces torn protobuf, partial JSON, and
+sometimes SIGSEGV. The worker periodically copies the live
+working state to `snapshots/.tmp_{seq}/` then `os.replace`s the
+directory atomically; the API only ever serves data from sealed
+`snapshots/{seq}/` dirs.
 
 ```{mermaid}
 sequenceDiagram
@@ -134,8 +139,8 @@ workspaces/{tenant_id}/
       manifest.json
       masks/{maskset_id}/...
   projects/{pid}/reconstructions/{rid}/
-      database.db                     # touched ONLY via pycolmap.Database
-      sparse/{idx}/                   # live, worker-only
+      database.db                     # backend-private; never read by the API
+      sparse/{idx}/                   # live, backend-only
       snapshots/{seq}/{idx}/          # sealed, atomic-rename; API reads these
       latest                          # text file: latest sealed seq
       manifest.json

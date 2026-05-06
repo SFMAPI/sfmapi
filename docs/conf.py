@@ -11,13 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "clients" / "python"))
 
-# Allow autodoc to work even without server-only extras installed
-# (e.g., on Read the Docs without CUDA / arq's redis).
+# Allow autodoc to work without server-side extras installed (e.g.,
+# on the GitHub Pages build runner without arq's redis client or
+# the postgres drivers).
 autodoc_mock_imports = [
-    "pycolmap",
-    "torch",
-    "segment_anything",
-    "cv2",
     "arq",
     "redis",
     "asyncpg",
@@ -30,8 +27,8 @@ autodoc_mock_imports = [
 # -- Project information -----------------------------------------------------
 
 project = "sfmapi"
-author = "opsiclear"
-copyright = "2026, opsiclear"  # noqa: A001 — sphinx convention
+author = "the sfmapi authors"
+copyright = "2026, the sfmapi authors"  # noqa: A001 — sphinx convention
 
 try:
     from app import __version__ as version
@@ -78,26 +75,33 @@ html_theme = "furo"
 html_title = f"sfmapi {release}"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
+html_js_files = ["custom.js"]
 html_logo = "_static/logo.svg"
 html_favicon = "_static/favicon.svg"
 html_theme_options = {
     "sidebar_hide_name": False,
     "navigation_with_keys": True,
-    "source_repository": "https://github.com/sfmapi/sfmapi",
+    "source_repository": "https://github.com/SFMAPI/sfmapi",
     "source_branch": "main",
     "source_directory": "docs/",
+    # Color tokens are driven by custom.css; these line up with the
+    # `--sfm-paper`, `--sfm-ink`, and `--sfm-accent` palette.
     "light_css_variables": {
-        "color-brand-primary": "#5b8def",
-        "color-brand-content": "#7c5cff",
+        "color-brand-primary": "#b45309",
+        "color-brand-content": "#b45309",
+        "color-background-primary": "#f7f4ed",
+        "color-foreground-primary": "#1b1812",
     },
     "dark_css_variables": {
-        "color-brand-primary": "#91b2ff",
-        "color-brand-content": "#b39bff",
+        "color-brand-primary": "#e2924c",
+        "color-brand-content": "#e2924c",
+        "color-background-primary": "#15140f",
+        "color-foreground-primary": "#ede7da",
     },
     "footer_icons": [
         {
             "name": "GitHub",
-            "url": "https://github.com/sfmapi/sfmapi",
+            "url": "https://github.com/SFMAPI/sfmapi",
             "html": (
                 '<svg stroke="currentColor" fill="currentColor" stroke-width="0" '
                 'viewBox="0 0 16 16" height="1.2em" width="1.2em" '
@@ -117,8 +121,11 @@ html_theme_options = {
         }
     ],
     "announcement": (
-        '<a href="https://github.com/sfmapi/sfmapi/releases" '
-        'style="color:white">📦 New release? Watch the repo on GitHub.</a>'
+        "<strong>Pre-release.</strong> The wire surface is stable and "
+        "tests are green, but version &lt;1.0 may break shapes between "
+        "minor releases. "
+        '<a href="guides/quickstart.html" style="color:white">'
+        "Get started in 5 minutes →</a>"
     ),
 }
 
@@ -195,7 +202,7 @@ rst_epilog = f"""
 on_rtd = os.environ.get("READTHEDOCS") == "True"
 html_context = {
     "display_github": True,
-    "github_user": "opsiclear",
+    "github_user": "SFMAPI",
     "github_repo": "sfmapi",
     "github_version": "main",
     "conf_py_path": "/docs/",

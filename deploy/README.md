@@ -1,21 +1,28 @@
 # sfmapi deployment
 
+For development or single-host use see the
+[Quickstart](https://sfmapi.github.io/guides/quickstart.html) — no
+Docker, no Redis, no Postgres needed. This guide covers
+production-shape multi-instance deploys.
+
 Two pieces:
 
-1. **Web + Redis + Postgres** — `docker compose` (this dir). No GPU.
-2. **Worker** — Windows service via `nssm`, runs against the host's
-   CUDA stack + the `pycolmap` wheel built from `../colmap_mod`. Connects
-   to the Redis + Postgres exposed by docker compose (or to a remote
-   pair).
+1. **Web tier** — stateless FastAPI behind your load balancer.
+2. **Worker tier** — one service per GPU, each running a backend
+   package you ship separately. Workers consume tasks from Redis,
+   read/write Postgres, and stream sealed snapshots to disk or
+   shared storage.
 
-The two halves are deliberately decoupled: the web tier scales out
-independently, and a single Postgres + Redis can serve N GPU hosts.
+Web and worker tiers are deliberately decoupled — the web tier
+scales horizontally and a single Postgres + Redis can serve any
+number of GPU worker hosts.
 
 ## 1. Bring up web + redis + postgres
 
 ```bash
 cp deploy/.env.example deploy/.env
 # edit deploy/.env: set SFMAPI_PG_PASS, SFMAPI_AUTH_MODE, etc.
+# Multi-instance flips: SFMAPI_QUEUE_BACKEND=arq, SFMAPI_DB_URL=postgresql://...
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
 ```
 
@@ -31,20 +38,26 @@ curl -sX POST http://localhost:8080/v1/admin/api-keys \
     -d '{"tenant_id":"my-tenant","name":"oncall"}'
 ```
 
-## 2. Install the worker on a GPU host (Windows)
+## 2. Install a worker on a GPU host (Windows)
 
-Prereqs:
-- The host has the same CUDA / cuDSS stack the `colmap_mod` wheel was
-  built against.
-- A venv at the repo root with `pycolmap` + `sfmapi` installed editable:
+Workers need:
 
-  ```powershell
-  uv venv
-  CMAKE_GENERATOR=Ninja uv pip install -e ..\colmap_mod
-  uv pip install -e ".[dev]"
-  ```
+- The same CUDA / driver stack the backend package was built against.
+- A backend package that satisfies `app.adapters.backend.SfmBackend`
+  installed in the worker venv (e.g. an editable checkout of your
+  pycolmap fork plus a thin `register_backend()` wrapper).
+- `sfmapi` itself, also installed editable.
+- `nssm` on `PATH` (https://nssm.cc/).
 
-- `nssm` is on `PATH` (https://nssm.cc/).
+Build the worker venv:
+
+```powershell
+uv venv
+# install your backend package — replace with your own URL
+uv pip install -e <path-to-your-backend-package>
+uv pip install -e ".[dev]"
+$env:SFMAPI_BACKEND = "<your-backend-name>"
+```
 
 Install (Administrator):
 
@@ -80,10 +93,21 @@ Uninstall:
 
 - Run `docker compose` once on a control plane host (or replace
   postgres + redis with managed services).
-- Install the worker service on each GPU host pointing at the central
-  `SFMAPI_DB_URL` + `SFMAPI_REDIS_URL`.
-- The fair-share scheduler (Phase 5.2) interleaves work across tenants;
-  per-host concurrency-1 is enforced by ARQ default settings.
+- Install the worker service on each GPU host with your chosen
+  backend package and pointed at the central `SFMAPI_DB_URL` +
+  `SFMAPI_REDIS_URL`.
+- The fair-share scheduler interleaves work across tenants;
+  per-host concurrency-1 is enforced by the supervisor + ARQ
+  defaults.
+
+## Helm
+
+A reference chart lives under `deploy/helm/sfmapi/` for Kubernetes
+deploys. The web tier is its own deployment; workers run as a
+DaemonSet that lands on GPU-capable nodes (replace the worker image
+with one that bundles your chosen backend). Postgres and Redis are
+pulled in as Bitnami subcharts; both can be disabled if you front
+the install with managed services.
 
 ## Smoke test the deploy
 
@@ -112,13 +136,17 @@ logs before tearing the stack down (unless `--keep` / `-Keep`).
 
 ## Troubleshooting
 
-- **Worker won't start**: `arq.exe` missing from venv → re-run
-  `uv pip install -e .`.
+- **Worker won't start**: `arq` missing from venv → re-run
+  `uv pip install -e .`. Or `SFMAPI_BACKEND` set to a name not in
+  the registry → check the backend package registers itself on
+  import.
 - **`/healthz` 503 from web**: check container logs; usually the
   postgres dependency is still starting (compose `condition: healthy`
   should prevent this).
 - **No tasks running**: confirm the worker can reach Redis
-  (`redis-cli -h <host> ping` from the worker host).
-- **CUDA OOM mid-mapping**: check
-  `Get-Content .\logs\<svc>.stderr.log`; reduce `sift_max_num_features`
-  or drop `max_image_size` in the `IncrementalSpec`.
+  (`redis-cli -h <host> ping` from the worker host) and that
+  `SFMAPI_QUEUE_BACKEND=arq` (the standalone-default `inline`
+  queue runs in-process and ignores Redis).
+- **501 CapabilityUnavailableError everywhere**: no backend
+  registered. The stub backend ships with sfmapi for tests; in
+  production you need a real backend package on the worker host.

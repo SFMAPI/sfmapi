@@ -9,15 +9,15 @@
 ::::{grid} 2
 :gutter: 3
 
-:::{grid-item-card} 🚀 Get started
+:::{grid-item-card} 🚀 Five-minute install
 :link: guides/quickstart
 :link-type: doc
 
-Stand up the docker-compose stack, install a worker on a GPU host,
-issue an API key, fire off a reconstruction.
+`uv pip install`, `alembic upgrade`, `uvicorn`. SQLite on disk,
+filesystem blobs, in-process worker. No Docker, no Redis.
 :::
 
-:::{grid-item-card} 🐚 5-minute curl tour
+:::{grid-item-card} 🐚 Curl tour
 :link: reference/curl_tour
 :link-type: doc
 
@@ -25,20 +25,21 @@ Project → upload → dataset → register image → recipe pipeline →
 poll → read sealed snapshot. End-to-end in shell.
 :::
 
+:::{grid-item-card} 🔌 Implement a backend
+:link: guides/backend_implementations
+:link-type: doc
+
+sfmapi ships no engine. Make `pycolmap`, OpenSfM, hloc, or your
+own fork power the API in one `register_backend()` call.
+:::
+
 :::{grid-item-card} 📡 REST API reference
 :link: reference/api
 :link-type: doc
 
 Resource model, endpoint groups, request/response schemas. The
-canonical machine-readable contract is the [OpenAPI page](reference/openapi.md).
-:::
-
-:::{grid-item-card} 🔐 Authentication
-:link: reference/auth
-:link-type: doc
-
-`auth_mode=none` (default, dev) vs `auth_mode=api_key` (multi-tenant).
-Issuing keys, revocation, tenant boundaries.
+canonical machine-readable contract is the
+[OpenAPI page](reference/openapi.md).
 :::
 
 :::{grid-item-card} 🧠 Architecture
@@ -66,6 +67,7 @@ implement. Resource model, conventions, conformance rules.
 :maxdepth: 2
 
 guides/quickstart
+guides/backend_implementations
 guides/architecture
 guides/storage
 guides/jobs_and_progress
@@ -133,8 +135,14 @@ GitHub repository <https://github.com/sfmapi/sfmapi>
 
 ## Status
 
-Production-shape but young: 449 tests passing on `main`, eleven CI
-workflows, dual-DB (SQLite + Postgres) parity, AGPL-3.0-or-later
-licensed. See [the changelog](changelog.md) for what landed in each
-release and [the decision register](guides/decisions.md) for the
-30 locked architectural decisions.
+Pre-release. Wire surface, orchestration shell, three SDKs (Python,
+TypeScript, C++) on the `main` branch, dual-DB (SQLite + Postgres)
+parity, full CI matrix green, AGPL-3.0-or-later licensed.
+
+This repository ships no concrete SfM backend on purpose — it's the
+contract. Backend implementations (pycolmap, OpenSfM, hloc, custom
+forks) live in their own packages and register at startup with
+`register_backend()`. See the
+[decision register](guides/decisions.md) for the locked
+architectural decisions and [the changelog](changelog.md) for what
+landed in each release.

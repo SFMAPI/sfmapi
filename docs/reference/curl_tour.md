@@ -5,9 +5,10 @@ project → upload bytes → register dataset → register images →
 extract features → match → verify → run incremental mapping →
 read sealed snapshot.
 
-Runs against an ephemeral local dev server; no GPU required to
-walk the calls themselves (the worker tasks just stub when
-`pycolmap` isn't installed).
+Runs against an ephemeral local dev server; no GPU or backend
+required to walk the calls themselves (the worker tasks return
+`501 CapabilityUnavailableError` when no backend is registered,
+which is fine for tracing the wire shape).
 
 ## Prerequisites
 

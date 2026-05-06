@@ -107,4 +107,4 @@ at 80% picks up near 80% rather than restarting from scratch.
 | `GET /v1/reconstructions/{rid}/snapshots/{seq}/points_preview.bin` | decimated |
 
 The API path-traversal-checks `name`, then serves the file directly
-with `FileResponse`. No DB read, no pycolmap import, no race risk.
+with `FileResponse`. No DB read, no backend import, no race risk.

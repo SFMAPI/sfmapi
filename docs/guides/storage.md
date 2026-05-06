@@ -6,7 +6,7 @@ Three orthogonal layers, each with a distinct responsibility:
 |---|---|---|
 | **Blobs** | Content-addressed immutable bytes for uploaded images | `app.storage.blobs` |
 | **ImageSource** | Logical reference to *where* bytes live (upload / local / S3) | `app.sources.*` |
-| **Materialization** | Per-job realization of an `ImageSource` to a real path pycolmap can read | worker-only |
+| **Materialization** | Per-job realization of an `ImageSource` to a real path the backend can read | worker-only |
 
 ## Blob store
 
@@ -45,8 +45,8 @@ Three implementations behind a single contract:
 
 ### Local path: no copy, no symlink
 
-`LocalPathSource` references the user's directory directly — pycolmap
-gets pointed at the user's path. To detect "user mutated their dir
+`LocalPathSource` references the user's directory directly — the
+backend gets pointed at the user's path. To detect "user mutated their dir
 under us," we record a fingerprint of every file:
 `{path, size, mtime_ns, sample_hash(head/mid/tail 1MiB)}`. Cheap,
 deterministic, fixed-cost regardless of file size.
