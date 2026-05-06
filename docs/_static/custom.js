@@ -1,8 +1,7 @@
-// sfmapi docs — small client-side enhancements.
+// sfmapi docs: small client-side enhancements.
 //
 // 1. Tag the API reference page with a body class so its scoped styles
-//    in custom.css apply (extra typography flourishes, numbered section
-//    markers, denser tables).
+//    in custom.css apply to dense tables.
 // 2. Decorate inline code that starts with an HTTP verb so it renders
 //    as a tiny tracked tag inside the API reference tables.
 //
@@ -42,7 +41,7 @@
                 : tokens
                       .map(tag)
                       .join(' <span class="http-verb-sep">/</span> ');
-        // Replace the cell's HTML — keeps any wrapping <p> Sphinx
+        // Replace the cell's HTML; keep any wrapping <p> Sphinx
         // emits but swaps its contents.
         const p = td.querySelector("p");
         if (p) p.innerHTML = inner;

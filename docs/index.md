@@ -1,15 +1,15 @@
 # sfmapi
 
-> **A generic HTTP/REST API for Structure-from-Motion tasks.**
-> Backend-agnostic by design — any SfM engine that conforms to the
-> [spec](spec.md) can serve it (pycolmap, OpenSfM, hloc, custom
-> forks). Sealed-snapshot progress, content-addressed storage,
-> multi-tenant from day 1.
+**A backend-agnostic REST API for Structure-from-Motion workflows.**
+
+sfmapi defines the wire contract, orchestration shell, sealed snapshots,
+content-addressed storage, and SDK-facing endpoints. Concrete SfM engines
+register as separate backends.
 
 ::::{grid} 2
 :gutter: 3
 
-:::{grid-item-card} 🚀 Five-minute install
+:::{grid-item-card} Five-minute install
 :link: guides/quickstart
 :link-type: doc
 
@@ -17,15 +17,15 @@
 filesystem blobs, in-process worker. No Docker, no Redis.
 :::
 
-:::{grid-item-card} 🐚 Curl tour
+:::{grid-item-card} Curl tour
 :link: reference/curl_tour
 :link-type: doc
 
-Project → upload → dataset → register image → recipe pipeline →
-poll → read sealed snapshot. End-to-end in shell.
+Project, upload, dataset, image registration, recipe pipeline,
+polling, and sealed snapshots from a shell.
 :::
 
-:::{grid-item-card} 🔌 Implement a backend
+:::{grid-item-card} Backend integration
 :link: guides/backend_implementations
 :link-type: doc
 
@@ -33,7 +33,7 @@ sfmapi ships no engine. Make `pycolmap`, OpenSfM, hloc, or your
 own fork power the API in one `register_backend()` call.
 :::
 
-:::{grid-item-card} 📡 REST API reference
+:::{grid-item-card} REST API reference
 :link: reference/api
 :link-type: doc
 
@@ -42,7 +42,7 @@ canonical machine-readable contract is the
 [OpenAPI page](reference/openapi.md).
 :::
 
-:::{grid-item-card} 🧠 Architecture
+:::{grid-item-card} Architecture
 :link: guides/architecture
 :link-type: doc
 
@@ -50,11 +50,11 @@ How the web tier, orchestrator, workers, and snapshot store fit
 together. Why the boundaries exist.
 :::
 
-:::{grid-item-card} 📜 Spec
+:::{grid-item-card} Spec
 :link: spec
 :link-type: doc
 
-`SFMAPI-SPEC.md` — the v1 surface as a standard other tools can
+`SFMAPI-SPEC.md` describes the v1 surface other tools can
 implement. Resource model, conventions, conformance rules.
 :::
 
@@ -139,7 +139,7 @@ Pre-release. Wire surface, orchestration shell, three SDKs (Python,
 TypeScript, C++) on the `main` branch, dual-DB (SQLite + Postgres)
 parity, full CI matrix green, AGPL-3.0-or-later licensed.
 
-This repository ships no concrete SfM backend on purpose — it's the
+This repository ships no concrete SfM backend on purpose; it is the
 contract. Backend implementations (pycolmap, OpenSfM, hloc, custom
 forks) live in their own packages and register at startup with
 `register_backend()`. See the

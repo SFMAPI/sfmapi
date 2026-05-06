@@ -1,101 +1,72 @@
-/* sfmapi docs — clean, minimal, field-manual aesthetic.
- *
- * Type pairing:
- *   Display / headings: Fraunces (variable serif, optical sizing).
- *   Body:               Public Sans (variable grotesque).
- *   Mono:               JetBrains Mono (variable, monospaced numerals).
- *
- * Palette:
- *   Warm paper background, near-black ink, single ochre accent.
- *   Hairline rules instead of card chrome. Tables borderless.
- *   Code blocks unframed, monospace numerals, slab-stop accent on the
- *   left edge.
- *
- * The api-reference body class (set by custom.js when the page is
- * /reference/api.html) opens up a few additional flourishes that
- * are too dense for the rest of the site.
- */
-
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..700,0..100,0..1&family=JetBrains+Mono:wght@400..700&family=Public+Sans:wght@300..700&display=swap");
-
-/* ============================================================ palette */
+/* sfmapi docs: small Furo refinements for a simpler, modern site. */
 
 :root {
-    /* light theme — warm paper / ink */
-    --sfm-paper:        #f7f4ed;
-    --sfm-paper-soft:   #efeadf;
-    --sfm-ink:          #1b1812;
-    --sfm-ink-soft:     #4a463d;
-    --sfm-muted:        #7c766a;
-    --sfm-hairline:     #e0d8c7;
-    --sfm-hairline-strong: #cfc6b1;
-    --sfm-accent:       #b45309;
-    --sfm-accent-soft:  rgba(180, 83, 9, 0.12);
-    --sfm-tint:         rgba(27, 24, 18, 0.04);
+    --sfm-bg: #ffffff;
+    --sfm-bg-soft: #f6f7f9;
+    --sfm-text: #111827;
+    --sfm-text-soft: #374151;
+    --sfm-muted: #667085;
+    --sfm-border: #e5e7eb;
+    --sfm-border-strong: #cbd5e1;
+    --sfm-accent: #2563eb;
+    --sfm-accent-soft: rgba(37, 99, 235, 0.1);
+    --sfm-code-bg: #f3f4f6;
+    --sfm-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 
-    --sfm-display:  "Fraunces", ui-serif, Georgia, "Iowan Old Style", serif;
-    --sfm-body:     "Public Sans", ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
-    --sfm-mono:     "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sfm-body: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, "Helvetica Neue", Arial, sans-serif;
+    --sfm-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
 }
 
 body[data-theme="dark"] {
-    --sfm-paper:        #15140f;
-    --sfm-paper-soft:   #1f1d17;
-    --sfm-ink:          #ede7da;
-    --sfm-ink-soft:     #c8c2b3;
-    --sfm-muted:        #86807a;
-    --sfm-hairline:     #2a2620;
-    --sfm-hairline-strong: #3a352c;
-    --sfm-accent:       #e2924c;
-    --sfm-accent-soft:  rgba(226, 146, 76, 0.16);
-    --sfm-tint:         rgba(237, 231, 218, 0.04);
+    --sfm-bg: #0f172a;
+    --sfm-bg-soft: #111c32;
+    --sfm-text: #e5e7eb;
+    --sfm-text-soft: #cbd5e1;
+    --sfm-muted: #94a3b8;
+    --sfm-border: #25324a;
+    --sfm-border-strong: #334155;
+    --sfm-accent: #60a5fa;
+    --sfm-accent-soft: rgba(96, 165, 250, 0.16);
+    --sfm-code-bg: #162033;
+    --sfm-shadow: none;
 }
-
-/* ============================================================ furo overrides */
 
 body {
-    --color-background-primary: var(--sfm-paper);
-    --color-background-secondary: var(--sfm-paper-soft);
-    --color-background-hover: var(--sfm-tint);
-    --color-foreground-primary: var(--sfm-ink);
-    --color-foreground-secondary: var(--sfm-ink-soft);
+    --color-background-primary: var(--sfm-bg);
+    --color-background-secondary: var(--sfm-bg-soft);
+    --color-background-hover: var(--sfm-accent-soft);
+    --color-foreground-primary: var(--sfm-text);
+    --color-foreground-secondary: var(--sfm-text-soft);
     --color-foreground-muted: var(--sfm-muted);
-    --color-foreground-border: var(--sfm-hairline);
-
+    --color-foreground-border: var(--sfm-border);
     --color-brand-primary: var(--sfm-accent);
     --color-brand-content: var(--sfm-accent);
-    --color-link: var(--sfm-ink);
+    --color-link: var(--sfm-accent);
     --color-link--hover: var(--sfm-accent);
     --color-link-underline: transparent;
-    --color-link-underline--hover: var(--sfm-accent);
-
-    --color-inline-code-background: var(--sfm-tint);
-    --color-code-background: var(--sfm-paper-soft);
-    --color-code-foreground: var(--sfm-ink);
-
-    --color-table-border: var(--sfm-hairline);
-    --color-table-header-background: transparent;
-
-    --color-sidebar-background: var(--sfm-paper);
-    --color-sidebar-background-border: var(--sfm-hairline);
-    --color-sidebar-link-text--top-level: var(--sfm-ink);
-    --color-sidebar-brand-text: var(--sfm-ink);
-    --color-sidebar-search-background: transparent;
-
+    --color-link-underline--hover: currentColor;
+    --color-inline-code-background: var(--sfm-code-bg);
+    --color-code-background: var(--sfm-bg-soft);
+    --color-code-foreground: var(--sfm-text);
+    --color-sidebar-background: var(--sfm-bg);
+    --color-sidebar-background-border: var(--sfm-border);
+    --color-sidebar-brand-text: var(--sfm-text);
+    --color-sidebar-link-text--top-level: var(--sfm-text);
     --font-stack: var(--sfm-body);
+    --font-stack--headings: var(--sfm-body);
     --font-stack--monospace: var(--sfm-mono);
-    --font-stack--headings: var(--sfm-display);
-}
 
-body, .bd-content {
     font-family: var(--sfm-body);
-    font-feature-settings: "ss02", "cv02", "cv11";
-    font-variation-settings: "wght" 400;
+    letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* ============================================================ typography */
+article {
+    color: var(--sfm-text);
+}
 
 article h1,
 article h2,
@@ -103,227 +74,149 @@ article h3,
 article h4,
 article h5,
 article h6 {
-    font-family: var(--sfm-display);
-    color: var(--sfm-ink);
-    letter-spacing: -0.012em;
-    line-height: 1.18;
+    color: var(--sfm-text);
+    font-family: var(--sfm-body);
+    letter-spacing: 0;
+    line-height: 1.2;
 }
 
 article > section > h1:first-of-type {
-    /* override the gradient AI-slop from the previous theme */
     background: none !important;
     -webkit-background-clip: border-box !important;
     background-clip: border-box !important;
-    -webkit-text-fill-color: var(--sfm-ink) !important;
-    color: var(--sfm-ink) !important;
-    font-family: var(--sfm-display);
-    font-weight: 400;
-    font-size: clamp(2.4rem, 4.6vw + 1rem, 3.8rem);
-    line-height: 1.05;
-    letter-spacing: -0.022em;
-    font-variation-settings: "opsz" 144, "SOFT" 30;
-    margin-bottom: 0.75rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--sfm-hairline);
-    position: relative;
-}
-
-article > section > h1:first-of-type::after {
-    /* tiny ochre tick under the title — single accent moment */
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: -1px;
-    width: 36px;
-    height: 1px;
-    background: var(--sfm-accent);
+    -webkit-text-fill-color: var(--sfm-text) !important;
+    border-bottom: 1px solid var(--sfm-border);
+    color: var(--sfm-text) !important;
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    margin-bottom: 1rem;
+    padding-bottom: 0.9rem;
 }
 
 article h2 {
-    font-weight: 400;
-    font-size: clamp(1.6rem, 2vw + 1rem, 2rem);
-    margin-top: 4rem;
-    margin-bottom: 0.6rem;
-    padding-top: 2rem;
-    border-top: 1px solid var(--sfm-hairline);
-    font-variation-settings: "opsz" 96, "SOFT" 20;
+    border-top: 1px solid var(--sfm-border);
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    margin-bottom: 0.75rem;
+    margin-top: 3rem;
+    padding-top: 1.6rem;
 }
 
 article h3 {
-    font-family: var(--sfm-body);
-    font-weight: 600;
-    font-size: 0.78rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--sfm-ink-soft);
-    margin-top: 2.4rem;
-    margin-bottom: 0.7rem;
-}
-
-article h4 {
-    font-family: var(--sfm-display);
-    font-weight: 500;
-    font-size: 1.15rem;
+    font-size: 1.12rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    margin-bottom: 0.55rem;
     margin-top: 2rem;
-    margin-bottom: 0.4rem;
-    font-variation-settings: "opsz" 24;
 }
 
 article p,
 article li {
+    color: var(--sfm-text-soft);
     font-size: 1rem;
-    line-height: 1.72;
-    color: var(--sfm-ink);
+    line-height: 1.7;
 }
 
 article p {
-    max-width: 68ch;
+    max-width: 72ch;
 }
 
 article blockquote {
-    border-left: 2px solid var(--sfm-accent);
-    margin-left: 0;
-    padding: 0.1rem 0 0.1rem 1.4rem;
-    color: var(--sfm-ink-soft);
-    font-style: italic;
-    font-family: var(--sfm-display);
-    font-size: 1.06rem;
-    line-height: 1.55;
-    font-variation-settings: "opsz" 36, "SOFT" 50, "WONK" 1;
+    background: var(--sfm-bg-soft);
+    border: 1px solid var(--sfm-border);
+    border-left: 4px solid var(--sfm-accent);
+    border-radius: 8px;
+    color: var(--sfm-text-soft);
+    font-style: normal;
+    margin: 1.2rem 0 1.6rem;
+    padding: 1rem 1.1rem;
+}
+
+article blockquote p {
+    margin: 0.25rem 0;
 }
 
 article a,
 article a:visited {
-    color: var(--sfm-ink);
+    color: var(--sfm-accent);
     text-decoration: none;
-    background-image: linear-gradient(var(--sfm-accent), var(--sfm-accent));
-    background-position: 0 100%;
-    background-repeat: no-repeat;
-    background-size: 0% 1px;
-    transition: background-size 220ms cubic-bezier(0.2, 0.7, 0.2, 1),
-                color 180ms ease;
-    padding-bottom: 1px;
 }
 
 article a:hover {
-    color: var(--sfm-accent);
-    background-size: 100% 1px;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
 }
 
-/* heading anchor (¶) — keep, but quiet */
 article a.headerlink {
     color: var(--sfm-muted);
-    background: none;
     opacity: 0;
-    transition: opacity 200ms ease;
-    font-weight: 300;
-    margin-left: 0.45rem;
+    text-decoration: none;
 }
-article :hover > a.headerlink { opacity: 1; }
 
-/* ============================================================ code */
+article :hover > a.headerlink {
+    opacity: 1;
+}
 
-code, kbd, pre, .highlight pre {
+code,
+kbd,
+pre,
+.highlight pre {
     font-family: var(--sfm-mono);
-    font-feature-settings: "calt" 0, "zero" 1;
-    font-variation-settings: "wght" 450;
 }
 
 :not(pre) > code {
-    background: var(--sfm-tint);
-    border: 1px solid var(--sfm-hairline);
-    color: var(--sfm-ink);
-    padding: 0.06em 0.42em;
-    border-radius: 3px;
-    font-size: 0.88em;
-    font-variation-settings: "wght" 500;
-}
-
-article a:hover > code,
-article a code:hover {
-    color: var(--sfm-accent);
-    border-color: var(--sfm-accent-soft);
+    background: var(--sfm-code-bg);
+    border: 1px solid var(--sfm-border);
+    border-radius: 6px;
+    color: var(--sfm-text);
+    font-size: 0.9em;
+    padding: 0.08em 0.34em;
 }
 
 .highlight {
-    background: var(--sfm-paper-soft);
-    border: 1px solid var(--sfm-hairline);
-    border-left: 2px solid var(--sfm-accent);
-    border-radius: 2px;
-    padding: 0.1rem 0;
-    margin: 1.5rem 0;
+    background: var(--sfm-bg-soft);
+    border: 1px solid var(--sfm-border);
+    border-radius: 8px;
     box-shadow: none;
+    margin: 1.4rem 0;
 }
 
 .highlight pre {
     background: transparent;
-    padding: 1rem 1.2rem;
-    font-size: 0.86rem;
-    line-height: 1.7;
-    color: var(--sfm-ink);
+    color: var(--sfm-text);
+    font-size: 0.88rem;
+    line-height: 1.65;
+    padding: 1rem 1.1rem;
 }
-
-/* mute the rainbow Pygments output to a near-monochrome punctuation
- * while preserving distinguishability. Strings + comments hold the
- * ochre accent so JSON / curl examples still parse at a glance. */
-.highlight .c, .highlight .c1, .highlight .ch, .highlight .cm,
-.highlight .cs, .highlight .cp { color: var(--sfm-muted); font-style: italic; }
-.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb,
-.highlight .sc, .highlight .sd, .highlight .se, .highlight .sh,
-.highlight .si, .highlight .sx, .highlight .sr { color: var(--sfm-accent); }
-.highlight .k, .highlight .kc, .highlight .kd, .highlight .kn,
-.highlight .kp, .highlight .kr, .highlight .kt {
-    color: var(--sfm-ink);
-    font-variation-settings: "wght" 600;
-}
-.highlight .nb, .highlight .nf, .highlight .nx, .highlight .nc,
-.highlight .nn { color: var(--sfm-ink); }
-.highlight .o, .highlight .p { color: var(--sfm-ink-soft); }
-.highlight .mi, .highlight .mf, .highlight .mh, .highlight .mo,
-.highlight .il, .highlight .mb { color: var(--sfm-ink); }
-.highlight .gh, .highlight .gu { color: var(--sfm-ink); font-variation-settings: "wght" 700; }
-
-/* ============================================================ tables */
 
 article table.docutils {
-    border-collapse: collapse;
+    border: 1px solid var(--sfm-border);
+    border-collapse: separate;
+    border-radius: 8px;
     border-spacing: 0;
-    width: 100%;
-    margin: 1.5rem 0;
     font-size: 0.94rem;
-    line-height: 1.55;
-    border: none;
-    border-top: 1px solid var(--sfm-ink);
-    border-bottom: 1px solid var(--sfm-hairline-strong);
-    border-radius: 0;
-    overflow: visible;
-    background: transparent;
-}
-
-article table.docutils thead {
-    background: transparent !important;
+    margin: 1.4rem 0;
+    overflow: hidden;
+    width: 100%;
 }
 
 article table.docutils thead th {
-    background: transparent !important;
-    border: none;
-    border-bottom: 1px solid var(--sfm-hairline-strong);
-    color: var(--sfm-ink);
-    font-family: var(--sfm-body);
-    font-weight: 600;
-    font-size: 0.7rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    background: var(--sfm-bg-soft) !important;
+    border-bottom: 1px solid var(--sfm-border);
+    color: var(--sfm-text);
+    font-weight: 700;
+    letter-spacing: 0;
+    padding: 0.75rem 0.9rem;
     text-align: left;
-    padding: 0.85rem 0.9rem;
 }
 
 article table.docutils tbody td {
-    border: none;
-    border-bottom: 1px solid var(--sfm-hairline);
-    padding: 0.78rem 0.9rem;
+    border-bottom: 1px solid var(--sfm-border);
+    color: var(--sfm-text-soft);
+    padding: 0.75rem 0.9rem;
     vertical-align: top;
-    background: transparent;
 }
 
 article table.docutils tbody tr:last-child td {
@@ -331,43 +224,28 @@ article table.docutils tbody tr:last-child td {
 }
 
 article table.docutils tbody tr:hover td {
-    background: var(--sfm-tint);
+    background: var(--sfm-bg-soft);
 }
-
-/* code inside tables: drop the border-pill chrome, keep the tint */
-article table.docutils :not(pre) > code {
-    background: transparent;
-    border: none;
-    padding: 0;
-    font-size: 0.86em;
-    color: var(--sfm-ink);
-    font-variation-settings: "wght" 500;
-}
-
-/* ============================================================ admonitions */
 
 .admonition,
 div.admonition {
-    background: var(--sfm-paper-soft);
-    border: none;
-    border-left: 2px solid var(--sfm-accent);
-    border-radius: 0;
+    background: var(--sfm-bg-soft);
+    border: 1px solid var(--sfm-border);
+    border-left: 4px solid var(--sfm-accent);
+    border-radius: 8px;
     box-shadow: none;
-    margin: 1.6rem 0;
-    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    padding: 1rem 1.1rem;
 }
 
 .admonition .admonition-title,
 div.admonition > p.admonition-title {
     background: transparent;
-    color: var(--sfm-ink-soft);
-    font-family: var(--sfm-body);
-    font-weight: 600;
-    font-size: 0.74rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    color: var(--sfm-text);
+    font-weight: 700;
+    letter-spacing: 0;
+    margin: 0 0 0.45rem;
     padding: 0;
-    margin: 0 0 0.5rem 0;
 }
 
 .admonition .admonition-title::before,
@@ -375,261 +253,199 @@ div.admonition > p.admonition-title::before {
     display: none;
 }
 
-/* ============================================================ sphinx-design grid cards */
-
 .sd-card {
-    background: var(--sfm-paper) !important;
-    border: 1px solid var(--sfm-hairline) !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    transition: border-color 220ms ease, transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    background: var(--sfm-bg) !important;
+    border: 1px solid var(--sfm-border) !important;
+    border-radius: 8px !important;
+    box-shadow: var(--sfm-shadow) !important;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .sd-card:hover {
     border-color: var(--sfm-accent) !important;
-    transform: none;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12) !important;
+}
+
+body[data-theme="dark"] .sd-card:hover {
     box-shadow: none !important;
 }
 
 .sd-card .sd-card-title {
-    font-family: var(--sfm-display) !important;
-    font-weight: 500 !important;
-    color: var(--sfm-ink) !important;
-    letter-spacing: -0.012em;
-    font-variation-settings: "opsz" 36;
-}
-
-body[data-theme="dark"] .sd-card .sd-card-title {
-    color: var(--sfm-ink) !important;
-}
-
-.sd-card .sd-card-text {
-    color: var(--sfm-ink-soft) !important;
-    font-size: 0.94rem;
-    line-height: 1.6;
-}
-
-/* ============================================================ sidebar */
-
-.sidebar-brand {
-    padding-top: 1.4rem;
-    padding-bottom: 0.8rem;
-    border-bottom: 1px solid var(--sfm-hairline);
-    margin-bottom: 0.5rem;
-}
-
-.sidebar-brand-text {
-    font-family: var(--sfm-display);
-    font-weight: 500;
-    letter-spacing: -0.018em;
-    font-size: 1.18rem;
-    font-variation-settings: "opsz" 48, "SOFT" 30;
-    color: var(--sfm-ink);
-}
-
-.sidebar-logo {
-    width: 30px;
-    height: 30px;
-}
-
-.toctree-l1 > a.reference {
-    font-family: var(--sfm-body);
-    font-weight: 500;
-    font-size: 0.92rem;
+    color: var(--sfm-text) !important;
+    font-size: 1.02rem;
+    font-weight: 700 !important;
     letter-spacing: 0;
 }
 
-.toctree-l2 > a.reference,
-.toctree-l3 > a.reference {
-    font-family: var(--sfm-body);
-    font-weight: 400;
-    font-size: 0.88rem;
-    color: var(--sfm-ink-soft);
+.sd-card .sd-card-text {
+    color: var(--sfm-text-soft) !important;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.sidebar-brand {
+    border-bottom: 1px solid var(--sfm-border);
+    margin-bottom: 0.6rem;
+    padding-bottom: 1rem;
+    padding-top: 1.25rem;
+}
+
+.sidebar-logo {
+    display: none !important;
+}
+
+.sidebar-brand-text {
+    color: var(--sfm-text);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0;
 }
 
 .sidebar-tree .caption,
 .sidebar-tree .caption-text {
-    font-family: var(--sfm-body);
-    font-weight: 600;
-    font-size: 0.66rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
     color: var(--sfm-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.toctree-l1 > a.reference,
+.toctree-l2 > a.reference,
+.toctree-l3 > a.reference {
+    letter-spacing: 0;
 }
 
 .sidebar-tree a.current {
     color: var(--sfm-accent);
-    font-weight: 600;
+    font-weight: 700;
 }
-
-/* Hide the gradient announcement bar's default treatment */
-.announcement {
-    background: var(--sfm-ink);
-    color: var(--sfm-paper);
-    border-bottom: 1px solid var(--sfm-hairline);
-    font-family: var(--sfm-body);
-    font-size: 0.86rem;
-    letter-spacing: 0.01em;
-}
-.announcement a { color: var(--sfm-paper); text-decoration: underline; }
-.announcement strong { font-variation-settings: "wght" 600; }
-
-/* ============================================================ search */
 
 .sidebar-search {
-    border: 1px solid var(--sfm-hairline);
-    border-radius: 0;
-    background: transparent;
+    background: var(--sfm-bg-soft);
+    border: 1px solid var(--sfm-border);
+    border-radius: 8px;
+    color: var(--sfm-text);
     font-family: var(--sfm-body);
-    font-size: 0.88rem;
-    color: var(--sfm-ink);
-    transition: border-color 180ms ease;
+    font-size: 0.9rem;
 }
+
 .sidebar-search:focus {
     border-color: var(--sfm-accent);
     outline: none;
 }
-.sidebar-search-container::before {
-    color: var(--sfm-muted) !important;
+
+.announcement {
+    background: var(--sfm-accent);
+    border: none;
+    color: #ffffff;
+    font-size: 0.9rem;
+    letter-spacing: 0;
 }
 
-/* ============================================================ footer */
+.announcement a,
+.announcement a:visited {
+    color: #ffffff;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+}
 
 .related-pages {
-    border-top: 1px solid var(--sfm-hairline);
+    border-top: 1px solid var(--sfm-border);
     padding-top: 1rem;
 }
+
 .related-pages a {
-    border: 1px solid var(--sfm-hairline);
-    border-radius: 0;
-    transition: border-color 180ms ease, color 180ms ease;
+    border: 1px solid var(--sfm-border);
+    border-radius: 8px;
 }
+
 .related-pages a:hover {
     border-color: var(--sfm-accent);
     color: var(--sfm-accent);
 }
-.related-pages a .page-info .title {
-    font-family: var(--sfm-display);
-    font-weight: 500;
-    font-variation-settings: "opsz" 24;
-}
 
 footer .bottom-of-page {
-    opacity: 1;
+    border-top: 1px solid var(--sfm-border);
     color: var(--sfm-muted);
-    font-size: 0.82rem;
-    border-top: 1px solid var(--sfm-hairline);
-    padding-top: 1rem;
+    font-size: 0.84rem;
     margin-top: 3rem;
+    opacity: 1;
+    padding-top: 1rem;
 }
-
-/* ============================================================ misc */
 
 article hr {
     border: none;
-    border-top: 1px solid var(--sfm-hairline);
-    margin: 3rem 0;
+    border-top: 1px solid var(--sfm-border);
+    margin: 2.5rem 0;
 }
 
-article ul, article ol {
-    padding-left: 1.4rem;
+article ul,
+article ol {
+    padding-left: 1.35rem;
 }
 
 article li::marker {
     color: var(--sfm-muted);
 }
 
-/* `points.bin`-style key terms when authors mark them
- * via `*emphasis*` inside body copy */
-article em {
-    font-family: var(--sfm-display);
-    font-style: italic;
-    font-variation-settings: "opsz" 18, "SOFT" 100, "WONK" 1;
-    color: var(--sfm-ink);
+.mermaid {
+    margin: 1.5rem 0;
 }
-
-article strong {
-    font-variation-settings: "wght" 600;
-    color: var(--sfm-ink);
-}
-
-/* mermaid diagrams: paper background + ink stroke, no card chrome */
-.mermaid svg {
-    background: transparent !important;
-}
-
-/* ============================================================ API REFERENCE
- *
- * Extra refinements on top of the above, scoped to the API reference page
- * via a body class set in custom.js. Goal: make the dense table-heavy page
- * feel like a printed field manual. */
 
 body.api-reference article {
     max-width: none;
 }
 
-body.api-reference article > section > h1:first-of-type {
-    /* a single italicized word for editorial flourish */
-    font-variation-settings: "opsz" 144, "SOFT" 50;
-    font-size: clamp(2.6rem, 5vw + 1rem, 4.4rem);
-    margin-top: 0.4rem;
-}
-
-body.api-reference article h2 {
-    /* numbered section markers in the margin */
-    counter-increment: api-section;
-    position: relative;
-    font-variation-settings: "opsz" 96, "SOFT" 30;
-}
-
-body.api-reference article {
-    counter-reset: api-section;
-}
-
-body.api-reference article h2::before {
-    content: counter(api-section, decimal-leading-zero);
-    position: absolute;
-    left: -3.6rem;
-    top: 2.2rem;
+article code.http-verb {
+    background: var(--sfm-bg-soft);
+    border: 1px solid var(--sfm-border-strong);
+    border-radius: 6px;
+    color: var(--sfm-text);
+    display: inline-block;
     font-family: var(--sfm-mono);
     font-size: 0.74rem;
-    font-variation-settings: "wght" 500;
-    color: var(--sfm-muted);
-    letter-spacing: 0.04em;
-}
-
-@media (max-width: 1100px) {
-    body.api-reference article h2::before {
-        position: static;
-        display: block;
-        margin-bottom: 0.4rem;
-    }
-}
-
-/* HTTP method labels: when an inline code starts with a verb, render it
- * as a tiny tracked all-caps tag. Pure CSS via :has + attr selector
- * isn't reliable here, so we apply via JS-set class .http-verb. */
-article code.http-verb {
-    display: inline-block;
-    background: transparent;
-    border: 1px solid var(--sfm-hairline-strong);
-    color: var(--sfm-ink-soft);
-    font-family: var(--sfm-body);
-    font-size: 0.66rem;
-    font-variation-settings: "wght" 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    padding: 0.18em 0.5em;
-    border-radius: 0;
+    font-weight: 700;
+    letter-spacing: 0;
     line-height: 1.3;
-    vertical-align: 0.05em;
+    padding: 0.2em 0.5em;
+    text-transform: uppercase;
 }
 
-article code.http-verb.http-get    { color: var(--sfm-ink); border-color: var(--sfm-ink); }
-article code.http-verb.http-post   { color: var(--sfm-accent); border-color: var(--sfm-accent); }
-article code.http-verb.http-patch  { color: var(--sfm-accent); border-color: var(--sfm-accent); opacity: 0.85; }
-article code.http-verb.http-put    { color: var(--sfm-accent); border-color: var(--sfm-accent); opacity: 0.7; }
-article code.http-verb.http-delete { color: var(--sfm-ink-soft); border-color: var(--sfm-hairline-strong); text-decoration: line-through; text-decoration-thickness: 1px; }
+article code.http-verb.http-get {
+    border-color: #16a34a;
+    color: #15803d;
+}
+
+article code.http-verb.http-post {
+    border-color: var(--sfm-accent);
+    color: var(--sfm-accent);
+}
+
+article code.http-verb.http-patch,
+article code.http-verb.http-put {
+    border-color: #a855f7;
+    color: #7e22ce;
+}
+
+article code.http-verb.http-delete {
+    border-color: #dc2626;
+    color: #b91c1c;
+}
+
+body[data-theme="dark"] article code.http-verb.http-get {
+    color: #4ade80;
+}
+
+body[data-theme="dark"] article code.http-verb.http-patch,
+body[data-theme="dark"] article code.http-verb.http-put {
+    color: #c084fc;
+}
+
+body[data-theme="dark"] article code.http-verb.http-delete {
+    color: #f87171;
+}
 
 article .http-verb-sep {
     color: var(--sfm-muted);
@@ -637,24 +453,29 @@ article .http-verb-sep {
     margin: 0 0.1rem;
 }
 
-/* For the two-column "Method | Path | Body | Returns" tables, give
- * the method column a fixed minimum width and align baseline with
- * the verb tag. */
 body.api-reference article table.docutils thead th:first-child,
 body.api-reference article table.docutils tbody td:first-child {
-    width: 6rem;
     white-space: nowrap;
+    width: 6rem;
 }
 
-/* Path column should breathe and prefer mono. */
-body.api-reference article table.docutils tbody td:nth-child(2) code {
-    font-size: 0.86em;
-    color: var(--sfm-ink);
-}
-
-/* Mermaid resource-model diagram on api.md — give it room and a hairline frame. */
 body.api-reference .mermaid {
-    margin: 2rem 0;
-    padding: 1.4rem;
-    border: 1px solid var(--sfm-hairline);
+    background: var(--sfm-bg-soft);
+    border: 1px solid var(--sfm-border);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+@media (max-width: 720px) {
+    article > section > h1:first-of-type {
+        font-size: 2rem;
+    }
+
+    article h2 {
+        font-size: 1.35rem;
+    }
+
+    .sd-card .sd-card-title {
+        font-size: 1rem;
+    }
 }

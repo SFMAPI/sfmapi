@@ -76,7 +76,6 @@ html_title = f"sfmapi {release}"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_js_files = ["custom.js"]
-html_logo = "_static/logo.svg"
 html_favicon = "_static/favicon.svg"
 html_theme_options = {
     "sidebar_hide_name": False,
@@ -84,19 +83,19 @@ html_theme_options = {
     "source_repository": "https://github.com/SFMAPI/sfmapi",
     "source_branch": "main",
     "source_directory": "docs/",
-    # Color tokens are driven by custom.css; these line up with the
-    # `--sfm-paper`, `--sfm-ink`, and `--sfm-accent` palette.
+    # Color tokens are driven by custom.css; keep the base theme neutral
+    # and let the local stylesheet add only light refinements.
     "light_css_variables": {
-        "color-brand-primary": "#b45309",
-        "color-brand-content": "#b45309",
-        "color-background-primary": "#f7f4ed",
-        "color-foreground-primary": "#1b1812",
+        "color-brand-primary": "#2563eb",
+        "color-brand-content": "#2563eb",
+        "color-background-primary": "#ffffff",
+        "color-foreground-primary": "#111827",
     },
     "dark_css_variables": {
-        "color-brand-primary": "#e2924c",
-        "color-brand-content": "#e2924c",
-        "color-background-primary": "#15140f",
-        "color-foreground-primary": "#ede7da",
+        "color-brand-primary": "#60a5fa",
+        "color-brand-content": "#60a5fa",
+        "color-background-primary": "#0f172a",
+        "color-foreground-primary": "#e5e7eb",
     },
     "footer_icons": [
         {
@@ -121,11 +120,8 @@ html_theme_options = {
         }
     ],
     "announcement": (
-        "<strong>Pre-release.</strong> The wire surface is stable and "
-        "tests are green, but version &lt;1.0 may break shapes between "
-        "minor releases. "
-        '<a href="guides/quickstart.html" style="color:white">'
-        "Get started in 5 minutes →</a>"
+        "<strong>Pre-release.</strong> API shapes may change before 1.0. "
+        '<a href="guides/quickstart.html">Start with the quickstart</a>'
     ),
 }
 
