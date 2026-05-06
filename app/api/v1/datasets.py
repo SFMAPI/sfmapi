@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1._helpers import accepted_response
+from app.api.v1._helpers import accepted_response, masked_updates
 from app.core.tenancy import current_tenant
+from app.db.models import Dataset
 from app.db.session import get_db
 from app.schemas.api.common import Link, Page, to_out
 from app.schemas.api.datasets import (
@@ -33,7 +34,7 @@ def _dataset_links(project_id: str, dataset_id: str) -> dict[str, Link]:
     }
 
 
-def _to_out(d) -> DatasetOut:
+def _to_out(d: Dataset) -> DatasetOut:
     return to_out(DatasetOut, d, links=_dataset_links(d.project_id, d.dataset_id))
 
 
@@ -139,15 +140,25 @@ async def patch(
     project_id: str,
     dataset_id: str,
     body: DatasetPatch,
+    update_mask: str | None = Query(
+        default=None,
+        description=(
+            "Optional AIP-161 comma-separated field mask. Allowed paths: "
+            "name, camera_model, intrinsics_mode, is_spherical, rig_config, "
+            "respect_exif_orientation, active_maskset_id."
+        ),
+    ),
     tenant_id: str = Depends(current_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> DatasetOut:
     """Partially update a dataset.
 
-    Only the fields present in the request body are written. The
-    dataset's ``source_id`` is immutable — to change image inputs,
-    create a new dataset. 422 if the row exists but belongs to a
-    different project than the one in the path.
+    Without ``update_mask``, only fields present in the request body
+    are written. With ``update_mask``, only the named field paths are
+    applied and they must also be present in the body.
+
+    The dataset's ``source_id`` is immutable; to change image inputs,
+    create a new dataset. 422 if the row exists but belongs to another project.
     """
     await dataset_service.get_dataset(
         session, tenant_id=tenant_id, dataset_id=dataset_id, project_id=project_id
@@ -156,7 +167,19 @@ async def patch(
         session,
         tenant_id=tenant_id,
         dataset_id=dataset_id,
-        updates=body.model_dump(exclude_unset=True),
+        updates=masked_updates(
+            body,
+            update_mask,
+            allowed={
+                "name",
+                "camera_model",
+                "intrinsics_mode",
+                "is_spherical",
+                "rig_config",
+                "respect_exif_orientation",
+                "active_maskset_id",
+            },
+        ),
     )
     return _to_out(d)
 

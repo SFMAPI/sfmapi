@@ -574,7 +574,7 @@ segments. **Bold** = required. Italics = optional.
 | POST    | `/v1/projects`              | `{name, description?}` → `Project` (201)|
 | GET     | `/v1/projects`              | `Page<Project>`                         |
 | GET     | `/v1/projects/{pid}`        | `Project`                               |
-| PATCH   | `/v1/projects/{pid}`        | `{name?, description?}` → `Project`     |
+| PATCH   | `/v1/projects/{pid}`        | `{name?, description?}` + optional `?update_mask=` → `Project` |
 | DELETE  | `/v1/projects/{pid}`        | 204                                     |
 
 ### 6.3 Uploads (chunked)
@@ -596,7 +596,13 @@ from `Image.blob_sha` (§6.5).
 | POST    | `/v1/projects/{pid}/datasets`                 | `Dataset` (201) |
 | GET     | `/v1/projects/{pid}/datasets`                 | `Page<Dataset>` |
 | GET     | `/v1/projects/{pid}/datasets/{did}`           | `Dataset`       |
-| PATCH   | `/v1/projects/{pid}/datasets/{did}`           | `Dataset`       |
+| PATCH   | `/v1/projects/{pid}/datasets/{did}`           | `Dataset` + optional `?update_mask=` |
+
+PATCH endpoints follow AIP-161 when `update_mask` is provided:
+comma-separated field paths are relative to the request body and
+each named path **MUST** also appear in the body. When `update_mask`
+is omitted, servers apply the legacy implicit mask: fields present in
+the JSON body are updated and absent fields are left unchanged.
 
 `POST` body:
 
@@ -619,8 +625,9 @@ from `Image.blob_sha` (§6.5).
 | POST    | `/v1/datasets/{did}/images`                | `Image` (201) |
 | POST    | `/v1/datasets/{did}/images:batchCreate`    | `BatchCreateImagesResponse` (201) |
 | GET     | `/v1/datasets/{did}/images`                | `Page<Image>` |
-| DELETE  | `/v1/datasets/{did}/images/{name}`         | 204           |
 | GET     | `/v1/images/{image_id}`                    | `Image`       |
+| DELETE  | `/v1/images/{image_id}`                    | 204           |
+| DELETE  | `/v1/datasets/{did}/images/{name}`         | 204 (legacy label-addressed delete) |
 | GET     | `/v1/images/{image_id}/bytes`              | image bytes (Range, ETag) |
 | GET     | `/v1/images/{image_id}/thumbnail?size=N`   | JPEG (Cache-Control) |
 | GET     | `/v1/images/{image_id}/exif`               | JSON          |

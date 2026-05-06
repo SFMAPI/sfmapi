@@ -39,7 +39,7 @@ Recorded fixture (`tests/contract/fixtures/error_422_validation.json`)
 re-recorded; regression guards updated in Python and TypeScript
 suites.
 
-### Still open — JobAcceptedResponse stage-specific keys
+### Shipped — JobAcceptedResponse stage-specific keys (`L22`)
 
 **Finding** (Agents 1+2 converging): `JobAcceptedResponse` has
 `extra="allow"` and stage endpoints attach stage-specific keys
@@ -50,33 +50,19 @@ intentional, not accidental — but the SDK codegen sees the loose
 envelope and emits `Any`/`Record<string, unknown>`, defeating
 typed-SDK autocomplete.
 
-**Recommended fix**: turn the extras into named Optional fields on
-the envelope. Already partially done — `JobAcceptedResponse` has
-`recon_id`, `dataset_id`, `project_id`, `method`, `applied_sim3`
-typed today, plus `extra="allow"` for forward-compat. Agent 1's
-"Phase b" recommendation: add `target_recon_id` + `source_recon_ids`
-to the envelope (currently injected via dict spread on the
-`/v1/reconstructions:merge` route). Estimated 30 minutes; additive
-and non-breaking.
+**Shipped**: `JobAcceptedResponse` now declares every stage-specific
+key as a typed optional field and no longer allows arbitrary extra
+keys. Routes construct the typed envelope directly.
 
-**Status**: deferred. Not on the critical path. Generated SDKs
-already round-trip the recorded fixtures successfully.
-
-### Still open — Image DELETE path parameter naming
+### Shipped — Image DELETE path parameter naming (`L33`)
 
 **Finding** (Agent 1): `DELETE /v1/datasets/{dataset_id}/images/{name}`
 uses `name` as the path parameter, but `name` on `ImageOut` is a
 human-readable label, while `image_id` is the canonical key.
 
-**Recommended fix**: rename the path parameter from `{name}` to
-`{image_id}` to match Get / List conventions. Stable in place with
-deprecation: keep `{name}` for one major version, add the new path
-alongside. Agent 1 estimate: 1 hour.
-
-**Status**: not applied. The `name` route is documented in
-`app/api/v1/images.py` and the existing tests use it. Treating this
-as locked-in-practice; will revisit if a real consumer flow surfaces
-the ambiguity.
+**Shipped**: added `DELETE /v1/images/{image_id}` as the canonical
+ID-addressed route and kept `DELETE /v1/datasets/{dataset_id}/images/{name}`
+as a compatibility alias for label-addressed clients.
 
 ---
 
@@ -127,10 +113,10 @@ The field is documented and consistent across resources.
 
 PATCH endpoints use Pydantic's `model_dump(exclude_unset=True)`,
 not an explicit `update_mask`. AIP-134/161 prefer `update_mask`.
-**Decision**: defer. The implicit mask is well-understood
-(`field=null` → unchanged, `field=value` → set). Adding `update_mask`
-as an additive optional field is cheap (~2h) and would help API
-linters; revisit after auth ships.
+**Shipped** (`L33`): project and dataset PATCH endpoints accept an
+optional AIP-161 `update_mask`. Omitting it preserves the legacy
+implicit mask: fields present in the JSON body are updated and absent
+fields are left unchanged.
 
 ### Schema versioning consolidation (Agent 2)
 
@@ -325,8 +311,6 @@ shipped. The full set:
 - Timestamp `_at` → `_time` (intentional Python-ecosystem exception)
 - `name` → `display_name` (cancelled — would create parallel-field
   confusion)
-- Field masks on PATCH (`update_mask`) — additive, low value before
-  auth ships
 - Idempotency-Key on Job-submit POSTs (~3h, needs dedupe table)
 - 401 vs 403 split for missing-vs-rejected auth (auth_mode=none
   default makes this dormant)
@@ -422,8 +406,6 @@ schemas — AIP-203)
 - Timestamp `_at` → `_time` (intentional Python-ecosystem exception).
 - `name` → `display_name` (cancelled per audit decision; would create
   parallel-field confusion).
-- Field masks on PATCH (`update_mask`) — additive but dormant before
-  auth ships.
 - Idempotency-Key on Job-submit POSTs (~3h, needs dedupe table).
 - 401 vs 403 split (auth dormant; explicit revisit when real auth
   ships in P3).

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +25,7 @@ async def add_image(
     byte_size: int | None = None,
     width: int | None = None,
     height: int | None = None,
-    exif: dict | None = None,
+    exif: dict[str, Any] | None = None,
 ) -> Image:
     if source_kind == "upload":
         result = await session.execute(select(Blob).where(Blob.sha256 == content_sha))
@@ -91,7 +93,7 @@ async def get_image(session: AsyncSession, *, tenant_id: str, image_id: str) -> 
 
 
 async def set_pose_prior(
-    session: AsyncSession, *, tenant_id: str, image_id: str, prior: dict | None
+    session: AsyncSession, *, tenant_id: str, image_id: str, prior: dict[str, Any] | None
 ) -> Image:
     """Attach (or clear) a PosePrior on an image. Pass ``None`` to clear."""
     img = await get_image(session, tenant_id=tenant_id, image_id=image_id)
@@ -102,7 +104,7 @@ async def set_pose_prior(
 
 async def list_pose_priors(
     session: AsyncSession, *, tenant_id: str, dataset_id: str
-) -> list[tuple[Image, dict]]:
+) -> list[tuple[Image, dict[str, Any]]]:
     """Return ``(image, prior_dict)`` for every image in the dataset that
     carries a non-null ``pose_prior_json``. Order: by image name."""
     rows = (
@@ -136,9 +138,18 @@ async def delete_image(
     img = result.scalar_one_or_none()
     if img is None:
         raise NotFoundError(f"Image {name} not found in dataset")
+    await _delete_image_row(session, img)
+
+
+async def delete_image_by_id(session: AsyncSession, *, tenant_id: str, image_id: str) -> None:
+    img = await get_image(session, tenant_id=tenant_id, image_id=image_id)
+    await _delete_image_row(session, img)
+
+
+async def _delete_image_row(session: AsyncSession, img: Image) -> None:
     if img.source_kind == "upload":
         b = await session.get(Blob, img.content_sha)
         if b is not None:
             b.refcount = max(0, b.refcount - 1)
     await session.execute(delete(Image).where(Image.image_id == img.image_id))
-    await recompute_manifest_hash(session, dataset_id=dataset_id)
+    await recompute_manifest_hash(session, dataset_id=img.dataset_id)

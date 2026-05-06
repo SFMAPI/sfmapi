@@ -79,10 +79,15 @@ flowchart LR
 | POST | `/v1/projects` | `{name, description?}` | `Project` |
 | GET | `/v1/projects` | `?page_token=&page_size=` | `Page<Project>` |
 | GET | `/v1/projects/{pid}` | — | `Project` |
-| PATCH | `/v1/projects/{pid}` | `ProjectPatch` | `Project` |
+| PATCH | `/v1/projects/{pid}` | `ProjectPatch` + optional `?update_mask=` | `Project` |
 | DELETE | `/v1/projects/{pid}` | — | 204 |
 | POST | `/v1/projects/{pid}/datasets:from_video` | `VideoFramesRequest` | 202 + `JobAccepted` |
 | POST | `/v1/projects/{pid}/datasets:import_kapture` | `KaptureImportRequest` | 202 + `JobAccepted` |
+
+PATCH accepts an optional AIP-161 `update_mask` query parameter. Mask
+paths are comma-separated, body-relative, and must also be present in
+the JSON body; without a mask, sfmapi applies the body fields that are
+present.
 
 ## Uploads (chunked)
 
@@ -100,13 +105,14 @@ flowchart LR
 | POST | `/v1/projects/{pid}/datasets` | `{name, source: SourceSpec, camera_model, intrinsics_mode, is_spherical, rig_config?, respect_exif_orientation}` | `Dataset` |
 | GET | `/v1/projects/{pid}/datasets` | `?page_token=&page_size=` | `Page<Dataset>` |
 | GET | `/v1/projects/{pid}/datasets/{did}` | — | `Dataset` |
-| PATCH | `/v1/projects/{pid}/datasets/{did}` | `DatasetPatch` | `Dataset` |
+| PATCH | `/v1/projects/{pid}/datasets/{did}` | `DatasetPatch` + optional `?update_mask=` | `Dataset` |
 | DELETE | `/v1/projects/{pid}/datasets/{did}` | — | 204 |
 | POST | `/v1/datasets/{did}:render_cubemap` | `?face_size=` | 202 + `JobAccepted` |
 | POST | `/v1/datasets/{did}/images` | `ImageCreate` | `Image` |
 | POST | `/v1/datasets/{did}/images:batchCreate` | `BatchCreateImagesRequest{requests[]}` | `BatchCreateImagesResponse{images[]}` |
 | GET | `/v1/datasets/{did}/images` | `?page_token=&page_size=` | `Page<Image>` |
-| DELETE | `/v1/datasets/{did}/images/{name}` | — | 204 |
+| DELETE | `/v1/images/{iid}` | — | 204 |
+| DELETE | `/v1/datasets/{did}/images/{name}` | legacy label-addressed delete | 204 |
 | GET | `/v1/images/{iid}` | — | `Image` |
 | GET | `/v1/images/{iid}/bytes` | `If-None-Match` (optional) | image bytes |
 | GET | `/v1/images/{iid}/thumbnail` | `?size=N` | JPEG |

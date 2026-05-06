@@ -166,9 +166,9 @@ export interface paths {
          * Patch
          * @description Partially update a project.
          *
-         *     Only the fields present in the request body are written; unset
-         *     fields are left untouched (Pydantic ``exclude_unset=True``).
-         *     Returns the post-update :class:`ProjectOut` body.
+         *     Without ``update_mask``, only fields present in the request body
+         *     are written. With ``update_mask``, only the named field paths are
+         *     applied and they must also be present in the body.
          */
         patch: operations["patch_v1_projects__project_id__patch"];
         trace?: never;
@@ -368,10 +368,12 @@ export interface paths {
          * Patch
          * @description Partially update a dataset.
          *
-         *     Only the fields present in the request body are written. The
-         *     dataset's ``source_id`` is immutable — to change image inputs,
-         *     create a new dataset. 422 if the row exists but belongs to a
-         *     different project than the one in the path.
+         *     Without ``update_mask``, only fields present in the request body
+         *     are written. With ``update_mask``, only the named field paths are
+         *     applied and they must also be present in the body.
+         *
+         *     The dataset's ``source_id`` is immutable; to change image inputs,
+         *     create a new dataset. 422 if the row exists but belongs to another project.
          */
         patch: operations["patch_v1_projects__project_id__datasets__dataset_id__patch"];
         trace?: never;
@@ -501,7 +503,15 @@ export interface paths {
         get: operations["get_image_v1_images__image_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Image By Id
+         * @description Unregister an image by canonical ``image_id``.
+         *
+         *     This is the AIP-122-aligned delete path. The legacy
+         *     ``DELETE /v1/datasets/{dataset_id}/images/{name}`` route remains
+         *     for compatibility with clients that address images by label.
+         */
+        delete: operations["delete_image_by_id_v1_images__image_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3310,7 +3320,10 @@ export interface operations {
     };
     patch_v1_projects__project_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional AIP-161 comma-separated field mask. Allowed paths: name, description. */
+                update_mask?: string | null;
+            };
             header?: never;
             path: {
                 project_id: string;
@@ -3684,7 +3697,10 @@ export interface operations {
     };
     patch_v1_projects__project_id__datasets__dataset_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional AIP-161 comma-separated field mask. Allowed paths: name, camera_model, intrinsics_mode, is_spherical, rig_config, respect_exif_orientation, active_maskset_id. */
+                update_mask?: string | null;
+            };
             header?: never;
             path: {
                 project_id: string;
@@ -3905,6 +3921,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ImageOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_image_by_id_v1_images__image_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -66,6 +66,20 @@ async def test_get_image_metadata_includes_links(client) -> None:
     assert links["thumbnail"]["href"] == f"/v1/images/{image_id}/thumbnail"
 
 
+async def test_delete_image_by_id_removes_metadata_and_listing(client) -> None:
+    payload = _jpeg_bytes()
+    did, image_id = await _make_dataset_with_image(client, payload)
+    resp = await client.delete(f"/v1/images/{image_id}")
+    assert resp.status_code == 204, resp.text
+
+    missing = await client.get(f"/v1/images/{image_id}")
+    assert missing.status_code == 404
+
+    listing = await client.get(f"/v1/datasets/{did}/images")
+    assert listing.status_code == 200
+    assert listing.json()["items"] == []
+
+
 async def test_get_image_bytes_returns_payload_with_etag(client) -> None:
     payload = _jpeg_bytes()
     _, image_id = await _make_dataset_with_image(client, payload)

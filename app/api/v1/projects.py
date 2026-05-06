@@ -7,8 +7,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1._helpers import accepted_response
+from app.api.v1._helpers import accepted_response, masked_updates
 from app.core.tenancy import current_tenant
+from app.db.models import Project
 from app.db.session import get_db
 from app.schemas.api.common import Link, to_out
 from app.schemas.api.jobs import JobAcceptedResponse
@@ -31,7 +32,7 @@ def _project_links(project_id: str) -> dict[str, Link]:
     }
 
 
-def _to_out(p) -> ProjectOut:
+def _to_out(p: Project) -> ProjectOut:
     return to_out(ProjectOut, p, links=_project_links(p.project_id))
 
 
@@ -111,20 +112,27 @@ async def get(
 async def patch(
     project_id: str,
     body: ProjectPatch,
+    update_mask: str | None = Query(
+        default=None,
+        description=(
+            "Optional AIP-161 comma-separated field mask. "
+            "Allowed paths: name, description."
+        ),
+    ),
     tenant_id: str = Depends(current_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> ProjectOut:
     """Partially update a project.
 
-    Only the fields present in the request body are written; unset
-    fields are left untouched (Pydantic ``exclude_unset=True``).
-    Returns the post-update :class:`ProjectOut` body.
+    Without ``update_mask``, only fields present in the request body
+    are written. With ``update_mask``, only the named field paths are
+    applied and they must also be present in the body.
     """
     p = await project_service.patch_project(
         session,
         tenant_id=tenant_id,
         project_id=project_id,
-        updates=body.model_dump(exclude_unset=True),
+        updates=masked_updates(body, update_mask, allowed={"name", "description"}),
     )
     return _to_out(p)
 

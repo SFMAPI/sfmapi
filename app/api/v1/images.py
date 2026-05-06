@@ -190,6 +190,21 @@ async def get_image(
     return _to_out(img)
 
 
+@read_router.delete("/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_image_by_id(
+    image_id: str,
+    tenant_id: str = Depends(current_tenant),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """Unregister an image by canonical ``image_id``.
+
+    This is the AIP-122-aligned delete path. The legacy
+    ``DELETE /v1/datasets/{dataset_id}/images/{name}`` route remains
+    for compatibility with clients that address images by label.
+    """
+    await image_service.delete_image_by_id(session, tenant_id=tenant_id, image_id=image_id)
+
+
 @read_router.get("/{image_id}/bytes")
 async def get_image_bytes(
     image_id: str,
