@@ -15,7 +15,7 @@ the GPU host (much longer the first time).
 ## 1. Bring up web + redis + postgres
 
 ```bash
-git clone https://github.com/opsiclear/sfmapi
+git clone https://github.com/sfmapi/sfmapi
 cd sfmapi
 cp deploy/.env.example deploy/.env
 # Edit deploy/.env: set SFMAPI_PG_PASS, SFMAPI_AUTH_MODE=api_key

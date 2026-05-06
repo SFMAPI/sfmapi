@@ -3,8 +3,8 @@
 Web layer accepts these. Workers translate them to pycolmap option
 classes inside the colmap_adapter — never out here.
 
-Discriminator
--------------
+.. rubric:: PipelineSpec kinds
+
 :data:`PipelineSpec` is a tagged union discriminated on the ``kind``
 field:
 

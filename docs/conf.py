@@ -83,7 +83,7 @@ html_favicon = "_static/favicon.svg"
 html_theme_options = {
     "sidebar_hide_name": False,
     "navigation_with_keys": True,
-    "source_repository": "https://github.com/opsiclear/sfmapi",
+    "source_repository": "https://github.com/sfmapi/sfmapi",
     "source_branch": "main",
     "source_directory": "docs/",
     "light_css_variables": {
@@ -97,7 +97,7 @@ html_theme_options = {
     "footer_icons": [
         {
             "name": "GitHub",
-            "url": "https://github.com/opsiclear/sfmapi",
+            "url": "https://github.com/sfmapi/sfmapi",
             "html": (
                 '<svg stroke="currentColor" fill="currentColor" stroke-width="0" '
                 'viewBox="0 0 16 16" height="1.2em" width="1.2em" '
@@ -117,7 +117,7 @@ html_theme_options = {
         }
     ],
     "announcement": (
-        '<a href="https://github.com/opsiclear/sfmapi/releases" '
+        '<a href="https://github.com/sfmapi/sfmapi/releases" '
         'style="color:white">📦 New release? Watch the repo on GitHub.</a>'
     ),
 }

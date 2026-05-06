@@ -2,7 +2,7 @@
 
 **Version:** `v1.0-draft`
 **Status:** Draft. Stable in shape; additive changes only until v2.
-**Reference implementation:** [opsiclear/sfmapi](https://github.com/opsiclear/sfmapi)
+**Reference implementation:** [sfmapi/sfmapi](https://github.com/sfmapi/sfmapi)
 
 This document specifies a HTTP / REST + SSE + WebSocket surface for
 running Structure-from-Motion (SfM) pipelines as a service. It is
@@ -1647,4 +1647,4 @@ listed them here as future work.)
 ---
 
 *Comments, issues, and proposed changes:* file under
-`https://github.com/opsiclear/sfmapi/issues` with the `spec` label.
+`https://github.com/sfmapi/sfmapi/issues` with the `spec` label.

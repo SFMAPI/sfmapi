@@ -1,6 +1,6 @@
 # @sfmapi/client
 
-Typed TypeScript SDK for [sfmapi](https://github.com/opsiclear/sfmapi).
+Typed TypeScript SDK for [sfmapi](https://github.com/sfmapi/sfmapi).
 
 Works in browsers (modern fetch + ReadableStream) and Node ≥ 20.
 

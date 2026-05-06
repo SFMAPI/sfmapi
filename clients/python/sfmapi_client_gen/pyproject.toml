@@ -22,8 +22,8 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/opsiclear/sfmapi"
-Documentation = "https://github.com/opsiclear/sfmapi"
+Repository = "https://github.com/sfmapi/sfmapi"
+Documentation = "https://github.com/sfmapi/sfmapi"
 
 [build-system]
 requires = ["hatchling"]

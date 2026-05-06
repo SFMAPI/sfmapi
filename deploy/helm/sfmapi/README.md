@@ -1,6 +1,6 @@
 # sfmapi Helm chart
 
-Kubernetes-native install of the [sfmapi](https://github.com/opsiclear/sfmapi)
+Kubernetes-native install of the [sfmapi](https://github.com/sfmapi/sfmapi)
 web tier, with optional in-cluster GPU workers and bundled
 Postgres/Redis subcharts.
 

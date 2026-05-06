@@ -15,7 +15,7 @@ keywords:
   - photogrammetry
 home: https://sfmapi.dev
 sources:
-  - https://github.com/opsiclear/sfmapi
+  - https://github.com/sfmapi/sfmapi
 maintainers:
   - name: opsiclear
     url: https://github.com/opsiclear

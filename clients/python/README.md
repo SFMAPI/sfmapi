@@ -1,6 +1,6 @@
 # sfmapi-client
 
-Typed Python SDK for [sfmapi](https://github.com/opsiclear/sfmapi),
+Typed Python SDK for [sfmapi](https://github.com/sfmapi/sfmapi),
 plus the `sfmapi` CLI.
 
 ```bash

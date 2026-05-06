@@ -6,8 +6,8 @@ serves them via SSE with `Last-Event-ID` resume.
 Schema is versioned: a `schema_version` literal is pinned per kind. New
 kinds extend the union; old kinds never change shape.
 
-Discriminator
--------------
+.. rubric:: ProgressEvent kinds
+
 :data:`ProgressEvent` is a tagged union discriminated on ``kind``:
 
 - ``phase_started`` / ``phase_progress`` / ``phase_completed`` —

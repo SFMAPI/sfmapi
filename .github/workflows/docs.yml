@@ -13,6 +13,8 @@ on:
     paths:
       - "docs/**"
       - ".readthedocs.yaml"
+  # Allow manual re-publish from the Actions tab.
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -37,9 +39,52 @@ jobs:
       - name: Sphinx build (warning -> error)
         run: |
           uv run sphinx-build -b html -W --keep-going docs docs/_build/html
-      - name: Upload built site
+      - name: Upload built site (PR previews + retention)
         uses: actions/upload-artifact@v4
         with:
           name: docs-html
           path: docs/_build/html
           retention-days: 14
+
+  deploy:
+    # Push the strict-built site to the org-pages repo on every main
+    # push. Skipped on PRs (no secrets) and when the deploy token is
+    # absent (graceful no-op until the destination repo + PAT are
+    # provisioned).
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Bail early if deploy token isn't configured
+        id: gate
+        env:
+          DEPLOY_TOKEN: ${{ secrets.GH_PAGES_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$DEPLOY_TOKEN" ]; then
+            echo "GH_PAGES_DEPLOY_TOKEN not set; skipping deploy."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download built site
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-html
+          path: site
+      - name: Push to sfmapi/sfmapi.github.io
+        if: steps.gate.outputs.skip != 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.GH_PAGES_DEPLOY_TOKEN }}
+          external_repository: sfmapi/sfmapi.github.io
+          publish_branch: main
+          publish_dir: ./site
+          # Don't keep .git history on the destination — every push
+          # is a clean snapshot so the pages repo stays tiny.
+          force_orphan: true
+          # Sphinx already emits a `_static/` tree; Jekyll would treat
+          # the leading underscore as a hidden directory and drop it.
+          enable_jekyll: false
+          commit_message: "docs: deploy ${{ github.sha }}"

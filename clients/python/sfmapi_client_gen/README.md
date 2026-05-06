@@ -1,6 +1,6 @@
 # sfmapi-client-gen
 
-Auto-generated typed Python SDK for [sfmapi](https://github.com/opsiclear/sfmapi).
+Auto-generated typed Python SDK for [sfmapi](https://github.com/sfmapi/sfmapi).
 
 > **Generated** — do not hand-edit. Regenerate from the repo root via:
 > ```

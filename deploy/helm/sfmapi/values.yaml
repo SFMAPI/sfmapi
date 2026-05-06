@@ -8,7 +8,7 @@
 
 image:
   registry: ghcr.io
-  repository: opsiclear/sfmapi/web
+  repository: sfmapi/sfmapi/web
   tag: ""                        # defaults to .Chart.AppVersion if empty
   pullPolicy: IfNotPresent
   pullSecrets: []

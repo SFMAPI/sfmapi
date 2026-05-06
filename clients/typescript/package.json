@@ -52,7 +52,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/opsiclear/sfmapi.git",
+    "url": "git+https://github.com/sfmapi/sfmapi.git",
     "directory": "clients/typescript"
   },
   "keywords": [

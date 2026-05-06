@@ -46,5 +46,5 @@ _Drafted by release-drafter from merged PRs since the last tag._
   `worker-tests.yml` (self-hosted GPU runner, real pycolmap),
   `dependabot.yml`, `renovate.json` (tracks `colmap_mod` ref).
 
-[Unreleased]: https://github.com/opsiclear/sfmapi/compare/v0.0.1...HEAD
-[0.0.1]: https://github.com/opsiclear/sfmapi/releases/tag/v0.0.1
+[Unreleased]: https://github.com/sfmapi/sfmapi/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/sfmapi/sfmapi/releases/tag/v0.0.1
