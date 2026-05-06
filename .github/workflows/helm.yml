@@ -25,32 +25,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v5
         with:
-          version: "v3.16.0"
-      - name: Resolve subcharts (helm pull)
-        # Bitnami's HTTPS chart repo redirects to OCI at registry-1
-        # .docker.io/bitnamicharts; `helm dependency update` pulls
-        # but doesn't always drop the .tgz into the local `charts/`
-        # dir on 3.14+. Pulling the OCI charts explicitly into
-        # `charts/` is the reliable workaround.
+          # 3.16.0 hits a known OCI-subchart cleanup bug: `helm
+          # dependency build` pulls bitnami charts then logs
+          # "Deleting outdated charts" and empties charts/ before
+          # `helm template` runs. Pinning past the fix.
+          version: "v3.18.4"
+      - name: Resolve subcharts (helm dependency update)
+        # 3.18 + Bitnami's OCI redirect handles dependency resolution
+        # cleanly — drops the .tgz files in charts/ and writes
+        # Chart.lock in one shot. No explicit `helm pull` needed.
         run: |
           set -e
-          mkdir -p deploy/helm/sfmapi/charts
-          # Versions tracked here — bump alongside Chart.yaml's
-          # version range. Renovate's helm datasource keeps these
-          # honest.
-          helm pull oci://registry-1.docker.io/bitnamicharts/postgresql \
-              --version 16.7.27 \
-              -d deploy/helm/sfmapi/charts
-          helm pull oci://registry-1.docker.io/bitnamicharts/redis \
-              --version 21.2.14 \
-              -d deploy/helm/sfmapi/charts
+          helm dependency update deploy/helm/sfmapi
           ls -la deploy/helm/sfmapi/charts
-      - name: helm dependency build
-        # Reconciles `Chart.lock` from the .tgz files we just pulled.
-        # `helm template` refuses to run when subcharts in charts/
-        # are present but Chart.lock is missing or out of sync.
-        # `--skip-refresh` keeps it from re-pulling.
-        run: helm dependency build deploy/helm/sfmapi --skip-refresh
       - name: helm lint
         run: helm lint deploy/helm/sfmapi
       - name: helm template (defaults)
