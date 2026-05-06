@@ -1,0 +1,137 @@
+/* sfmapi docs branding */
+
+:root {
+    /* Brand palette — matches logo.svg gradient endpoints */
+    --sfm-blue: #5b8def;
+    --sfm-violet: #7c5cff;
+    --sfm-ink: #1a1f36;
+    --sfm-ink-soft: #4b5563;
+    --sfm-mono: ui-monospace, SFMono-Regular, "JetBrains Mono",
+        "Fira Mono", Menlo, Consolas, monospace;
+}
+
+/* ---- Furo color overrides --------------------------------------------- */
+
+body {
+    /* light theme */
+    --color-brand-primary: var(--sfm-blue);
+    --color-brand-content: var(--sfm-violet);
+    --color-link: var(--sfm-violet);
+    --color-link--hover: var(--sfm-blue);
+    --color-link-underline: transparent;
+    --color-link-underline--hover: var(--sfm-blue);
+    --color-sidebar-link-text--top-level: var(--sfm-ink);
+    --color-sidebar-brand-text: var(--sfm-ink);
+}
+
+body[data-theme="dark"] {
+    --color-brand-primary: #91b2ff;
+    --color-brand-content: #b39bff;
+    --color-link: #b39bff;
+    --color-link--hover: #91b2ff;
+}
+
+/* ---- Sidebar tweaks ---------------------------------------------------- */
+
+.sidebar-brand {
+    padding-top: 1.2rem;
+    padding-bottom: 0.6rem;
+}
+
+.sidebar-brand-text {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-size: 1.1rem;
+}
+
+.sidebar-logo {
+    width: 36px;
+    height: 36px;
+}
+
+/* ---- Page header polish ----------------------------------------------- */
+
+article > section > h1:first-of-type {
+    background: linear-gradient(95deg, var(--sfm-blue), var(--sfm-violet));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+/* ---- Code blocks ------------------------------------------------------- */
+
+.highlight pre,
+code,
+kbd {
+    font-family: var(--sfm-mono);
+}
+
+.highlight {
+    border-radius: 8px;
+}
+
+.highlight pre {
+    line-height: 1.55;
+}
+
+/* Inline code: subtle pill */
+:not(pre) > code {
+    padding: 0.12em 0.4em;
+    border-radius: 5px;
+    font-size: 0.92em;
+}
+
+/* ---- sphinx-design grid cards ----------------------------------------- */
+
+.sd-card {
+    border-radius: 12px !important;
+    border-color: rgba(91, 141, 239, 0.18) !important;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.sd-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -8px rgba(124, 92, 255, 0.32);
+}
+
+.sd-card-title {
+    font-weight: 700;
+    color: var(--sfm-ink) !important;
+}
+
+body[data-theme="dark"] .sd-card-title {
+    color: #f4f5fa !important;
+}
+
+/* ---- Tables ----------------------------------------------------------- */
+
+table.docutils {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+table.docutils thead {
+    background: linear-gradient(90deg,
+        rgba(91, 141, 239, 0.10),
+        rgba(124, 92, 255, 0.10));
+}
+
+/* ---- Admonitions: keep furo defaults but rounder ---------------------- */
+
+.admonition,
+div.admonition {
+    border-radius: 10px;
+}
+
+/* ---- Footer ----------------------------------------------------------- */
+
+.related-pages a {
+    border-radius: 10px;
+}
+
+footer .bottom-of-page {
+    opacity: 0.85;
+}

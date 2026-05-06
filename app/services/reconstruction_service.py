@@ -1,0 +1,78 @@
+"""Reconstruction + SubModel CRUD + Snapshot reads."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.errors import NotFoundError
+from app.core.paths import Paths
+from app.db.models import Reconstruction, SubModel
+from app.storage.snapshots import SnapshotStore
+
+
+async def get_reconstruction(
+    session: AsyncSession, *, tenant_id: str, recon_id: str
+) -> Reconstruction:
+    result = await session.execute(
+        select(Reconstruction).where(
+            Reconstruction.tenant_id == tenant_id, Reconstruction.recon_id == recon_id
+        )
+    )
+    r = result.scalar_one_or_none()
+    if r is None:
+        raise NotFoundError(f"Reconstruction {recon_id} not found")
+    return r
+
+
+async def list_submodels(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    recon_id: str,
+    page_size: int = 100,
+    page_token: str | None = None,
+) -> tuple[list[SubModel], str | None]:
+    """AIP-158 keyset pagination on ``submodel_id`` ascending; ``idx``
+    determines display order but ``submodel_id`` is the cursor key (stable
+    even when components are added / removed mid-iteration)."""
+    stmt = (
+        select(SubModel)
+        .where(SubModel.tenant_id == tenant_id, SubModel.recon_id == recon_id)
+        .order_by(SubModel.submodel_id)
+    )
+    if page_token:
+        stmt = stmt.where(SubModel.submodel_id > page_token)
+    stmt = stmt.limit(page_size + 1)
+    result = await session.execute(stmt)
+    rows = list(result.scalars().all())
+    next_page_token: str | None = None
+    if len(rows) > page_size:
+        next_page_token = rows[page_size - 1].submodel_id
+        rows = rows[:page_size]
+    # Surface in idx order (UI/SDK expectation) regardless of cursor key.
+    rows.sort(key=lambda r: r.idx)
+    return rows, next_page_token
+
+
+async def get_submodel(session: AsyncSession, *, tenant_id: str, submodel_id: str) -> SubModel:
+    result = await session.execute(
+        select(SubModel).where(SubModel.tenant_id == tenant_id, SubModel.submodel_id == submodel_id)
+    )
+    sm = result.scalar_one_or_none()
+    if sm is None:
+        raise NotFoundError(f"SubModel {submodel_id} not found")
+    return sm
+
+
+def list_snapshot_seqs(paths: Paths, tenant_id: str, project_id: str, recon_id: str) -> list[int]:
+    root = paths.reconstruction_root(tenant_id, project_id, recon_id)
+    if not root.exists():
+        return []
+    return SnapshotStore(root).list_sealed()
+
+
+def snapshot_dir(paths: Paths, tenant_id: str, project_id: str, recon_id: str, seq: int) -> Path:
+    return SnapshotStore(paths.reconstruction_root(tenant_id, project_id, recon_id)).path_for(seq)

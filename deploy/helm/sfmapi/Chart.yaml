@@ -1,0 +1,31 @@
+apiVersion: v2
+name: sfmapi
+description: |
+  sfmapi: a FastAPI service that wraps colmap_mod for SfM, plus image
+  segmentation. This chart deploys the web tier + an optional in-cluster
+  worker DaemonSet that lands on GPU-capable nodes. Postgres and Redis
+  are pulled in as subcharts; both can be disabled if you front the
+  install with managed services.
+type: application
+version: 0.0.1
+appVersion: "0.0.1"
+keywords:
+  - sfm
+  - colmap
+  - photogrammetry
+home: https://sfmapi.dev
+sources:
+  - https://github.com/opsiclear/sfmapi
+maintainers:
+  - name: opsiclear
+    url: https://github.com/opsiclear
+
+dependencies:
+  - name: postgresql
+    version: ">=16.0.0 <17.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: ">=20.0.0 <22.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled

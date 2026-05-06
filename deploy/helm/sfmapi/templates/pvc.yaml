@@ -1,0 +1,19 @@
+{{- if .Values.workspace.persistentVolumeClaim.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "sfmapi.fullname" . }}-workspaces
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "sfmapi.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- range .Values.workspace.persistentVolumeClaim.accessModes }}
+    - {{ . }}
+    {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.workspace.persistentVolumeClaim.size }}
+  {{- with .Values.workspace.persistentVolumeClaim.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,20 @@
+"""Relocalize images into an existing reconstruction."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from app.adapters.registry import get_backend
+from app.db.models import Task
+from app.workers._task_io import read_state
+
+
+def run(task: Task) -> dict:
+    inputs, spec = read_state(task)
+    return get_backend().relocalize(
+        model_path=Path(inputs["model_path"]),
+        database_path=Path(inputs["database_path"]),
+        image_root=Path(inputs["image_root"]),
+        output_path=Path(inputs["output_path"]),
+        image_ids=spec.get("image_ids") or [],
+    )

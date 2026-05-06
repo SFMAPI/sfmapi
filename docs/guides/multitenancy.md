@@ -1,0 +1,94 @@
+# Multi-tenancy
+
+sfmapi is multi-tenant from migration 0001. v0 ships in *single-user*
+mode (`SFMAPI_AUTH_MODE=none`) where every request resolves to the
+`default` tenant — but every table, every workspace path, and every
+service signature already carries `tenant_id`. Switching to real auth
+is a config flip plus an API key rollout.
+
+## What's in place from day 1
+
+- `tenant_id CHAR(26) NOT NULL DEFAULT 'default'` on every domain
+  table (`project`, `dataset`, `image_source`, `image`, `upload`,
+  `maskset`, `mask`, `job`, `task`, `reconstruction`, `submodel`).
+- Workspace paths are tenant-prefixed:
+  `workspaces/{tenant_id}/projects/{pid}/...`.
+- A FastAPI `current_tenant()` dependency injects the `tenant_id`
+  string into every route signature.
+- All service functions take `tenant_id` as the first kwarg and apply
+  the filter in their queries; no route trusts a path parameter for
+  tenant boundary.
+- Quota service is wired with NOOP enforcement under `auth_mode=none`,
+  but the call sites already exist.
+
+## Switching on API key auth
+
+1. Set `SFMAPI_AUTH_MODE=api_key` in the web container's env.
+2. Restart the web container.
+3. Issue a key:
+
+   ```bash
+   curl -sX POST http://localhost:8080/v1/admin/api-keys \
+       -H 'Content-Type: application/json' \
+       -d '{"tenant_id":"my-org","name":"oncall"}'
+   ```
+
+   Returns the raw key once — store it. The DB only persists
+   `sha256(raw_key)`.
+
+4. All requests now require `Authorization: Bearer sfm_xxx`. The
+   `current_tenant()` dep resolves the bearer to a tenant and injects
+   it.
+
+`/v1/admin/api-keys` itself is unauthenticated under `auth_mode=none`
+and **must be fronted by an admin-only auth layer in production**
+(e.g., a deploy-time master key).
+
+## Quotas
+
+```{eval-rst}
+.. automodule:: app.services.quota_service
+   :members:
+   :no-index:
+```
+
+Two enforced quotas (when `auth_mode=api_key`):
+
+- **storage**: total bytes attributed to the tenant (uploaded blobs,
+  cached S3 bytes, sealed snapshots).
+- **gpu_seconds_per_day**: rolling 24-hour sum of `gpu_seconds`
+  recorded against tenant Tasks.
+
+Quotas live on the `tenant_quota` table; either column NULL means
+"no limit." Hits return `429 quota_exceeded` (see
+[errors](../reference/errors.md)).
+
+## Fair-share scheduling
+
+The picker (`app.orchestrator.fair_share.pick_next_task`) interleaves
+ready tasks across tenants:
+
+1. Among pending tasks, group by `tenant_id`.
+2. Skip tenants whose `consecutive_for(tid) >= max_consecutive_per_tenant`.
+3. Among remaining, prefer the tenant with the fewest running tasks.
+4. Within that tenant, FIFO by `created_at`.
+
+Tunable via the `FairShareState(max_consecutive_per_tenant=N)` arg;
+default 2.
+
+## Tenant isolation tests
+
+Every CRUD test in `tests/e2e/` runs through the same dep, so isolation
+is enforced uniformly. Cross-tenant access (e.g., reading another
+tenant's project) returns 404, not 403, to avoid leaking existence.
+
+## Migration notes for existing data
+
+If you started in single-user mode and have data under
+`tenant_id='default'`, switching to multi-tenant means:
+
+1. Pick a target tenant for the existing data.
+2. Issue an API key bound to that tenant.
+3. (Optional) Migrate data to a new `tenant_id` with a manual UPDATE
+   per table — there's no built-in helper because mass-rewriting
+   tenant_id is a deliberate operation, not a routine one.

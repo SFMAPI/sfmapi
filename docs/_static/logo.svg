@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="sfmapi">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5b8def"/>
+      <stop offset="100%" stop-color="#7c5cff"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="url(#g1)"/>
+  <!-- A rough "structure-from-motion" mark: three little camera frusta
+       converging on a point cloud. -->
+  <g fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- frustum 1 -->
+    <path d="M10 22 L18 26 L18 36 L10 32 Z"/>
+    <line x1="18" y1="31" x2="32" y2="34"/>
+    <!-- frustum 2 -->
+    <path d="M30 12 L38 16 L38 26 L30 22 Z"/>
+    <line x1="38" y1="21" x2="34" y2="32"/>
+    <!-- frustum 3 -->
+    <path d="M48 22 L56 26 L56 36 L48 32 Z"/>
+    <line x1="48" y1="31" x2="36" y2="34"/>
+  </g>
+  <!-- point cloud cluster -->
+  <g fill="#ffffff">
+    <circle cx="33" cy="33" r="1.6"/>
+    <circle cx="35.5" cy="35" r="1.2"/>
+    <circle cx="31" cy="36" r="1.2"/>
+    <circle cx="34" cy="38" r="1"/>
+    <circle cx="36.5" cy="32.5" r="0.9"/>
+    <circle cx="30.5" cy="33.5" r="0.9"/>
+  </g>
+</svg>

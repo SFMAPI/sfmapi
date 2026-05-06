@@ -1,0 +1,66 @@
+{{- if .Values.worker.enabled }}
+{{- if not .Values.worker.image.repository }}
+{{- fail "worker.enabled=true requires worker.image.repository to be set (CUDA worker images are operator-built)." }}
+{{- end }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "sfmapi.fullname" . }}-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sfmapi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  selector:
+    matchLabels:
+      {{- include "sfmapi.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "sfmapi.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      serviceAccountName: {{ include "sfmapi.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: worker
+          image: {{ include "sfmapi.workerImage" . | quote }}
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          # Default command runs the ARQ worker against
+          # `app.workers.runner.WorkerSettings`. Override at the image
+          # level if your packaging differs.
+          command: ["arq", "app.workers.runner.WorkerSettings"]
+          env:
+            {{- include "sfmapi.commonEnv" . | nindent 12 }}
+            - name: SFMAPI_PYCOLMAP_AVAILABLE
+              value: "true"
+            - name: SFMAPI_WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- range $k, $v := .Values.worker.env.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          resources: {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            - name: workspaces
+              mountPath: /workspaces
+      volumes:
+        - name: workspaces
+          {{- if .Values.workspace.persistentVolumeClaim.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "sfmapi.fullname" . }}-workspaces
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

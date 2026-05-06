@@ -1,0 +1,158 @@
+# Default values for sfmapi.
+#
+# A minimal install (defaults): web Deployment + Postgres + Redis
+# subcharts + a workspace PVC. The worker DaemonSet is OFF by default
+# because it requires GPU-labeled nodes; turn it on by flipping
+# `worker.enabled=true` and adding nodeSelector / tolerations that
+# match your cluster's GPU pool.
+
+image:
+  registry: ghcr.io
+  repository: opsiclear/sfmapi/web
+  tag: ""                        # defaults to .Chart.AppVersion if empty
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+env:
+  authMode: api_key              # "none" | "api_key"
+  logLevel: INFO
+  inlineTasks: false
+  extraEnv: {}                   # arbitrary additional SFMAPI_* env vars
+
+# --- Web tier --------------------------------------------------------------
+
+web:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsUser: 10001
+    runAsNonRoot: true
+    fsGroup: 10001
+  containerSecurityContext:
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+  service:
+    type: ClusterIP
+    port: 8080
+  ingress:
+    enabled: false
+    className: ""                # e.g., nginx
+    annotations: {}
+    hosts:
+      - host: sfmapi.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []                      # see Ingress spec
+  livenessProbe:
+    httpGet: { path: /healthz, port: http }
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readinessProbe:
+    httpGet: { path: /readyz, port: http }
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+# --- Worker DaemonSet ------------------------------------------------------
+#
+# NOT enabled by default. Requires:
+#   - A node pool labeled `node.sfmapi/gpu=true` (or your equivalent),
+#     with the NVIDIA device plugin installed.
+#   - A container image that has the colmap_mod / pycolmap wheel built
+#     against the cluster's CUDA/cuDSS stack. We do NOT publish such
+#     an image (CUDA + license + arch matrix is operator-specific).
+#     Build your own and set `worker.image.repository` accordingly.
+
+worker:
+  enabled: false
+  image:
+    registry: ""
+    repository: ""               # e.g., ghcr.io/your-org/sfmapi-worker
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicasPerNode: 1
+  nodeSelector:
+    node.sfmapi/gpu: "true"
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+      nvidia.com/gpu: 1
+    limits:
+      memory: 16Gi
+      nvidia.com/gpu: 1
+  env:
+    extraEnv: {}                 # additional SFMAPI_* env vars
+
+# --- Workspace storage -----------------------------------------------------
+#
+# A single ReadWriteMany PVC backs both the web tier and (when enabled)
+# the worker DaemonSet. Production deployments should pick a CSI driver
+# that supports RWX (NFS, CephFS, Filestore, EFS, etc.). For dev,
+# RWO works if you also drop web.replicas to 1.
+
+workspace:
+  persistentVolumeClaim:
+    enabled: true
+    storageClassName: ""         # "" -> cluster default
+    accessModes: ["ReadWriteMany"]
+    size: 100Gi
+  hostPath: ""                   # alternative: bind a host dir (single node)
+
+# --- Postgres subchart -----------------------------------------------------
+
+postgresql:
+  enabled: true
+  auth:
+    username: sfm
+    password: changeme
+    database: sfmapi
+  primary:
+    persistence:
+      size: 10Gi
+
+# --- Redis subchart --------------------------------------------------------
+
+redis:
+  enabled: true
+  auth:
+    enabled: false               # ARQ doesn't require auth in default deploys
+  master:
+    persistence:
+      size: 5Gi
+  replica:
+    replicaCount: 0
+
+# --- Service account / RBAC ------------------------------------------------
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# --- Pod-level shared knobs ------------------------------------------------
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}

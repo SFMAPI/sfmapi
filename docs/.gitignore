@@ -1,0 +1,4 @@
+_build/
+_autosummary/
+.doctrees/
+_static/openapi.json

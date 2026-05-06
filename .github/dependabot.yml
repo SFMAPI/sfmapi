@@ -1,0 +1,58 @@
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels: ["dependencies", "ci"]
+    groups:
+      gha-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels: ["dependencies", "python"]
+    versioning-strategy: "increase-if-necessary"
+    ignore:
+      # Native CUDA-bound deps live on the worker host and are pinned by
+      # the colmap_mod build, not by sfmapi's pyproject. Don't try to
+      # bump them across PRs in this repo.
+      - dependency-name: "torch"
+      - dependency-name: "pycolmap"
+      - dependency-name: "segment-anything"
+    groups:
+      runtime-minor-and-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      dev-minor-and-patch:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "docker"
+    directory: "/deploy"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "UTC"
+    commit-message:
+      prefix: "deploy"
+      include: "scope"
+    labels: ["dependencies", "docker"]

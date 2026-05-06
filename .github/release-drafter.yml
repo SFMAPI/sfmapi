@@ -1,0 +1,97 @@
+name-template: "sfmapi v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+# version-resolver picks the bump level from PR labels; if no label is
+# present we default to a patch bump.
+version-resolver:
+  major:
+    labels: ["breaking"]
+  minor:
+    labels: ["enhancement", "feature"]
+  patch:
+    labels: ["fix", "bug", "chore", "deps", "ci", "docs", "refactor", "perf"]
+  default: patch
+
+categories:
+  - title: "💥 Breaking changes"
+    labels: ["breaking"]
+  - title: "🚀 Features"
+    labels: ["enhancement", "feature"]
+  - title: "🐛 Fixes"
+    labels: ["fix", "bug"]
+  - title: "⚡ Performance"
+    labels: ["perf"]
+  - title: "🛠 Internal / refactor"
+    labels: ["refactor", "chore"]
+  - title: "📦 Dependencies"
+    labels: ["dependencies", "deps"]
+  - title: "📚 Docs"
+    labels: ["docs"]
+  - title: "🤖 CI / Build"
+    labels: ["ci"]
+
+exclude-labels:
+  - "skip-changelog"
+  - "duplicate"
+  - "invalid"
+
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-escapes: '\<*_&'
+
+# Auto-label PRs by branch / file / title so contributors don't have to
+# tag manually for the common cases.
+autolabeler:
+  - label: "breaking"
+    title:
+      - "/^[A-Za-z]+(\\(.+\\))?!:/"     # conventional commit ! marker
+    body:
+      - "/BREAKING CHANGE/i"
+  - label: "feature"
+    branch: ["/^feat[/-].+/"]
+    title:
+      - "/^feat(\\(.+\\))?:/"
+  - label: "fix"
+    branch: ["/^fix[/-].+/"]
+    title:
+      - "/^fix(\\(.+\\))?:/"
+  - label: "perf"
+    title:
+      - "/^perf(\\(.+\\))?:/"
+  - label: "refactor"
+    title:
+      - "/^refactor(\\(.+\\))?:/"
+  - label: "docs"
+    title:
+      - "/^docs(\\(.+\\))?:/"
+    files:
+      - "**/*.md"
+      - "docs/**"
+  - label: "ci"
+    title:
+      - "/^ci(\\(.+\\))?:/"
+    files:
+      - ".github/**"
+      - "scripts/**"
+  - label: "deps"
+    title:
+      - "/^deps(\\(.+\\))?:/"
+      - "/^chore\\(deps\\):/"
+  - label: "chore"
+    title:
+      - "/^chore(\\(.+\\))?:/"
+
+template: |
+  ## sfmapi v$RESOLVED_VERSION
+
+  $CHANGES
+
+  ---
+
+  **Full changelog:** https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+  Container image:
+  ```
+  docker pull ghcr.io/$OWNER/$REPOSITORY/web:v$RESOLVED_VERSION
+  ```
+
+  Worker installer for Windows GPU hosts: see `worker-installer-v$RESOLVED_VERSION.zip` below.

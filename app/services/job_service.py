@@ -1,0 +1,144 @@
+"""Job CRUD + cache lookup + DAG persistence.
+
+The orchestrator owns DAG building (in `app.orchestrator.dag`). This
+service persists Jobs and Tasks to the DB and is responsible for cache
+short-circuit logic.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.errors import NotFoundError
+from app.core.ids import new_id
+from app.db.models import Job, Task
+from app.orchestrator.dag import TaskNode
+
+
+async def create_job(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    project_id: str,
+    recipe: str,
+    spec: dict | None,
+) -> Job:
+    j = Job(
+        tenant_id=tenant_id,
+        project_id=project_id,
+        recipe=recipe,
+        spec_json=spec,
+        status="pending",
+    )
+    session.add(j)
+    await session.flush()
+    return j
+
+
+async def get_job(session: AsyncSession, *, tenant_id: str, job_id: str) -> Job:
+    result = await session.execute(
+        select(Job).where(Job.tenant_id == tenant_id, Job.job_id == job_id)
+    )
+    j = result.scalar_one_or_none()
+    if j is None:
+        raise NotFoundError(f"Job {job_id} not found")
+    return j
+
+
+async def list_jobs(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    page_size: int = 50,
+    page_token: str | None = None,
+    status: str | None = None,
+) -> tuple[list[Job], str | None]:
+    """AIP-158 keyset pagination on ``job_id`` descending (most recent
+    submissions first). ``status`` filters to a single lifecycle state
+    when set — the canonical cheap-filter exposed in lieu of a full
+    AIP-160 grammar."""
+    stmt = select(Job).where(Job.tenant_id == tenant_id).order_by(Job.job_id.desc())
+    if status is not None:
+        stmt = stmt.where(Job.status == status)
+    if page_token:
+        stmt = stmt.where(Job.job_id < page_token)
+    stmt = stmt.limit(page_size + 1)
+    result = await session.execute(stmt)
+    rows = list(result.scalars().all())
+    next_page_token: str | None = None
+    if len(rows) > page_size:
+        next_page_token = rows[page_size - 1].job_id
+        rows = rows[:page_size]
+    return rows, next_page_token
+
+
+async def lookup_cached_task(
+    session: AsyncSession, *, tenant_id: str, cache_key: str
+) -> Task | None:
+    result = await session.execute(
+        select(Task)
+        .where(
+            Task.tenant_id == tenant_id,
+            Task.cache_key == cache_key,
+            Task.status == "succeeded",
+        )
+        .order_by(Task.finished_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def materialize_dag(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    job_id: str,
+    runtime_version_id: str,
+    nodes: Iterable[TaskNode],
+) -> list[Task]:
+    """Persist task nodes to the DB. Looks up cache hits per task; if a
+    successful Task with the same `cache_key` exists, copies its
+    `outputs_ref_json` and marks the new Task `succeeded` immediately."""
+    out: list[Task] = []
+    for n in nodes:
+        if not n.task_id:
+            n.task_id = new_id()
+        ck = n.cache_key(runtime_version_id)
+        cached = await lookup_cached_task(session, tenant_id=tenant_id, cache_key=ck)
+        t = Task(
+            task_id=n.task_id,
+            tenant_id=tenant_id,
+            job_id=job_id,
+            kind=n.kind,
+            inputs_hash=n.inputs_hash,
+            params_hash=n.params_hash,
+            runtime_version_id=runtime_version_id,
+            cache_key=ck,
+            depends_on_json=list(n.depends_on),
+            gpu_required=n.gpu_required,
+        )
+        if cached is not None:
+            t.status = "succeeded"
+            t.outputs_ref_json = cached.outputs_ref_json
+        elif n.metadata:
+            # Persist ``inputs`` / ``spec`` so the worker handler can
+            # read them via ``app.workers._task_io.read_state``. Stored
+            # in ``task_state_json`` (pre-execution carrier); the
+            # dispatcher writes the actual result to ``outputs_ref_json``
+            # post-execution. See ``L27`` in ``decisions.md`` for the
+            # split rationale.
+            t.task_state_json = dict(n.metadata)
+        session.add(t)
+        out.append(t)
+    await session.flush()
+    return out
+
+
+async def cancel_job(session: AsyncSession, *, tenant_id: str, job_id: str, force: bool) -> Job:
+    j = await get_job(session, tenant_id=tenant_id, job_id=job_id)
+    j.cancel_requested = True
+    j.cancel_force = bool(force) or j.cancel_force
+    return j

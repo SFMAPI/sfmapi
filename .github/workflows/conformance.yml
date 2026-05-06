@@ -1,0 +1,78 @@
+name: Conformance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "tests/conformance/**"
+      - "SFMAPI-SPEC.md"
+      - ".github/workflows/conformance.yml"
+  pull_request:
+    paths:
+      - "app/**"
+      - "tests/conformance/**"
+      - "SFMAPI-SPEC.md"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "External base URL to test against (leave blank to use the in-process reference impl)."
+        required: false
+        default: ""
+      api_key:
+        description: "Bearer token (only when base_url targets api_key mode)."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reference:
+    name: Reference impl (in-process)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install
+        run: uv sync --extra dev
+      - name: Run conformance suite
+        env:
+          SFMAPI_AUTH_MODE: "none"
+          SFMAPI_PYCOLMAP_AVAILABLE: "false"
+        run: uv run pytest tests/conformance -v --junitxml=conformance.xml
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-reference-junit
+          path: conformance.xml
+          retention-days: 30
+
+  external:
+    name: External target (manual)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.base_url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install
+        run: uv sync --extra dev
+      - name: Run conformance suite against ${{ github.event.inputs.base_url }}
+        env:
+          SFMAPI_TEST_BASE_URL: ${{ github.event.inputs.base_url }}
+          SFMAPI_TEST_KEY: ${{ github.event.inputs.api_key }}
+        run: uv run pytest tests/conformance -v --junitxml=conformance.xml
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-external-junit
+          path: conformance.xml
+          retention-days: 30

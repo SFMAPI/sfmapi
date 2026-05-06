@@ -1,0 +1,105 @@
+# Architecture Decision Register
+
+Single-page index of every architectural decision in sfmapi: what's
+locked, what's cancelled (and why), what's proposed but waiting on
+user input. Cross-links the long-form sources.
+
+When a decision changes from one status to another, update this
+register first — it's the single place a new contributor or returning
+user reads to understand "what is settled here?"
+
+---
+
+## Locked decisions
+
+These are committed and load-bearing. Don't reopen without an
+explicit decision-record update.
+
+| ID | Decision | Source | Why |
+|---|---|---|---|
+| L1 | One GPU per instance; per-GPU concurrency for SfM tasks = 1. Scale = more instances. | `CLAUDE.md` §"Locked Constraints" | CUDA + heavy memory model; concurrency at process level, not within-process |
+| L2 | Multi-tenant from day 1. `tenant_id NOT NULL DEFAULT 'default'` everywhere. `current_tenant()` returns `'default'` until auth lands. | `CLAUDE.md` §"Locked Constraints" | Cheap to add now, expensive to retrofit |
+| L3 | Image inputs: `upload \| local \| s3` behind one `ImageSource` abstraction. Local 50GB dirs MUST NOT be copied. | `CLAUDE.md` §"Locked Constraints" | Avoid disk-bound bottleneck on local-source workflows |
+| L4 | Sealed-snapshot progress only. API NEVER reads live `database.db` or live `sparse/`. | `CLAUDE.md` §"Locked Constraints" | Race-free reads; entire foundation of "API never sees half-written state" |
+| L5 | DAG: in-house orchestrator + ARQ as per-task executor. One Task = one ARQ job. | `CLAUDE.md` §"Locked Tech Decisions" | DAG semantics are sfmapi's; ARQ is just a scheduler |
+| L6 | DB: SQLite for v0, Postgres-compatible. ANSI SQL only. CI runs both. | `CLAUDE.md` §"Locked Tech Decisions" | SQLite-as-prod is a real deployment target (single-user / on-prem / embedded) |
+| L7 | Upload: roll-our-own chunked. `POST /uploads → upload_id`, `PATCH` with `Content-Range`, `POST /finalize`. `Idempotency-Key` from day 1. | `CLAUDE.md` §"Locked Tech Decisions" | TUS-resumable was overkill; this is the minimum for our use case |
+| L8 | Points binary: 26 B/point + 32 B header. `application/x-sfm-points-v1`. Cursor pagination via HTTP `Range`. | `CLAUDE.md` §"Locked Tech Decisions" | 80% size reduction vs JSON; cache-friendly; standard HTTP semantics |
+| L9 | Realtime: SSE-only for v0. Reserve `/ws/v1/...` for later. | `CLAUDE.md` §"Locked Tech Decisions" | SSE is one-directional, sufficient for progress; WebSocket would be premature |
+| L10 | Storage backends are pluggable: `BlobStore` Protocol + `Queue` Protocol; selected via env vars. | `CLAUDE.md` §"Locked Tech Decisions" | Real swap points (FS / S3 / memory; ARQ / inline) for different deploys |
+| L11 | Routes must declare `response_model`. SDK codegen falls back to `Any` otherwise. | `CLAUDE.md` §"Routes must declare `response_model`" | Typed SDKs depend on it; 16 intentionally-untyped binary/SSE/204 routes documented as the exception |
+| L12 | Generated SDKs (Python + TS) are canonical; hand-rolled SDKs deprecated as of 0.0.2, **removal milestone: 0.1.0** (every wire-shape change since L20 has cost dual maintenance). The deprecation warning at `clients/python/sfmapi_client/__init__.py` embeds the same target tag. | `CLAUDE.md` §"Hand-rolled SDKs are deprecated" + `docs/guides/aip_audit_2026.md` (smells round, gap #8) | Codegen + ergonomics shim reaches feature parity; hand-rolled becomes dead weight |
+| L13 | Job rollup via `_maybe_finalize_job` after every Task transition. Terminal vocabulary: `succeeded \| failed \| cancelled \| cancelled_dirty`. | `CLAUDE.md` §"Regression guards in `tests/contract/`" | `wait_for_job` and SSE-stream termination both depend on it |
+| L14 | SSE stream closes after one drain cycle past terminal. | `CLAUDE.md` §"SSE stream termination" | Without this, `submit_and_stream` consumers block forever |
+| L15 | `InMemoryBlobStore` is a process-local singleton. | `CLAUDE.md` §"`InMemoryBlobStore` is a process-local singleton" | Per-call construction broke multi-call flows because bytes live in per-instance dicts |
+| L16 | Ephemeral mode (`SFMAPI_EPHEMERAL=true`) flips to in-memory SQLite + memory blob + inline queue + tempdir workspace. | `CLAUDE.md` §"Ephemeral mode" | Single-binary, zero-persistence demo / embedded path |
+| L17 | One-shot feature endpoint at `POST /v1/oneshot/features`. Bytes-in / typed-result-out, no DB row, no Job, no cache. Tempfile is the only "persistence" and is deleted before the response. | `app/api/v1/oneshot.py` + `app/services/oneshot_service.py` + `docs/guides/oneshot_streaming_proposal.md` | Single-call ergonomic for "give me SIFT keypoints from this image, right now" — replaces the eight-step resource-API flow |
+| L18 | One-shot localize endpoint at `POST /v1/oneshot/localize?recon_id=...`. Bytes-in / typed-result-out, no Image / Blob / Upload / Job row. Resolves recon → sparse_dir under tenant; query image hits a tempfile then is deleted. Result reuses `LocalizationResult` shape verbatim. | `app/api/v1/oneshot.py` + `app/services/oneshot_service.py::localize_oneshot` + `docs/guides/oneshot_streaming_proposal.md` | Replaces the eight-step "upload + register + submit-localize + poll + decode" flow with one HTTP request — the canonical "static-map relocalization" consumer flow (AR overlay, heritage doc, fixed-environment SLAM) |
+| L19 | RFC 7807 envelope for `RequestValidationError` (422) — `{type, title, status, detail (str), instance, errors[]}`. FastAPI's default Pydantic shape `{detail: [...]}` is non-conformant; the new handler wraps it. `detail` is a human summary, `errors[]` preserves the structured per-field Pydantic errors. Error `type` URIs use the canonical `https://sfmapi.github.io/errors/<slug>` GitHub Pages domain. | `app/main.py::request_validation_handler` + `app/core/errors.py::SfmApiError.as_problem` + `docs/guides/aip_audit_2026.md` | Surfaced by AIP audit (Agent 3); fixes wire-shape inconsistency that broke SDK ergonomics' `raise_for_status` parsing |
+| L20 | AIP-158 pagination: list endpoints use `page_token` / `page_size` query params and return `Page{items, next_page_token, total}`. SSE/WS event replay (`start_cursor` on `/v1/jobs/{id}/events`) is a distinct concept and stays as-is. | `app/schemas/api/common.py::Page` + `app/api/v1/{projects,datasets,images,reconstructions}.py` + `docs/guides/aip_audit_2026.md` | Codegen helpers (openapi-fetch, openapi-python-client, Google generators) auto-detect AIP-158 envelopes; renaming unlocks free iterator-helper generation across all SDKs |
+| L21 | Lifecycle status fields are typed `Literal[...]` on the wire (AIP-216): `JobStatus`, `TaskStatus`, `UploadState`, `ReconstructionStatus` declare their closed sets in `app/schemas/api/`. ORM stays `String(...)` — only the response model gets typed. | `app/schemas/api/jobs.py` + `app/schemas/api/uploads.py` + `app/schemas/api/reconstructions.py` + `docs/guides/aip_audit_2026.md` | SDK codegen produces string-union types instead of `string`; consumer typos against terminal-state literals fail at compile time |
+| L22 | `JobAcceptedResponse` carries every stage-specific key as a typed Optional field (`target_recon_id`, `source_recon_ids`, `strategy`, `applied_sim3`, `method`, `recon_id`, `dataset_id`, `project_id`); `extra="allow"` removed. Routes no longer dict-spread untyped keys onto the envelope. | `app/schemas/api/jobs.py::JobAcceptedResponse` + `app/api/v1/{reconstructions,similarity}.py` + `tests/contract/test_e_generated_ergonomics.py::test_job_accepted_response_carries_stage_specific_typed_fields` | SDK codegen surfaces every stage-specific key as a typed accessor; previously consumers got `Any`/`Record<string, unknown>` and lost autocomplete on the very fields the route promised |
+| L23 | LRO custom verbs use AIP-136 colon syntax: `POST /v1/jobs/{id}:cancel`, `POST /v1/jobs/{id}:resume`, `POST /v1/uploads/{id}:finalize`, `POST /v1/datasets/{id}/images:batchCreate` (was `:batch`). `DELETE /v1/jobs/{id}` retired — cancellation is a side-effecting operation with `force` flag, not a deletion. Batch shape uses `BatchCreateImagesRequest{requests}` / `BatchCreateImagesResponse{images}` (AIP-231) instead of `ImageBatchCreate`/`Page[ImageOut]`. | `app/api/v1/{jobs,resume,uploads,images}.py` + `app/schemas/api/images.py` + SPEC.md §6.5/§6.7/§9.2/§9.3 + `docs/guides/aip_audit_2026.md` | Custom-verb consistency across the API; codegen helpers detect AIP-136 colon verbs and AIP-231 batch shapes for typed dispatch |
+| L24 | List endpoints implement real AIP-158 keyset pagination end-to-end (`projects`, `datasets`, `images`, `submodels`, `jobs`); `dict`-typed wire fields replaced with typed schemas (`JobAcceptedResponse.applied_sim3: Sim3`, `ReconstructionOut.spec: PipelineSpec`, `Image/PointObservationRow` for observations, `UploadEntrySpec` for `entries`); `SourceSpec` carries an explicit `Annotated[..., Field(discriminator="kind")]` wrapper so OpenAPI emits a proper tagged union. New `GET /v1/jobs?status=...` list endpoint with closed-set status filter. | `app/services/{dataset,reconstruction,job}_service.py` + `app/api/v1/{datasets,reconstructions,jobs}.py` + `app/schemas/api/{jobs,reconstructions,datasets}.py` + `docs/guides/aip_audit_2026.md` | Closes the "schema commits to pagination but service ignores it" wire-correctness gap; SDK codegen produces typed accessors instead of `Record<string, unknown>` for stage results / discriminated unions |
+| L25 | Documentation polish: every `@router.<method>` route has a meaningful docstring (~36 routes); discriminated-union schemas (`PipelineSpec`, `ProgressEvent`, `SourceSpec`) document the discriminator + variants + forward-compat rule + capability-flag mapping; resource models (`JobOut`/`TaskOut`/`ReconstructionOut`/`SubModelOut`/`DatasetOut`) carry rollup-semantics docstrings; every `app/core/errors.py` class documents HTTP status + when-to-raise + envelope extras. Auto-generated OpenAPI / SDK codegen now reflects the full contract. | `app/api/v1/*.py` + `app/core/errors.py` + `app/schemas/api/*.py` + `app/schemas/pipeline_spec.py` + `app/schemas/progress_event.py` | Operator/SDK-consumer ergonomics; Redoc / Swagger UI / generated client tooltips become useful instead of bare path strings |
+| L26 | AIP-155 request correlation: `RequestIdMiddleware` (`app/main.py`) reads `X-Request-ID` (or mints a ULID), echoes the resolved value back in the response header, and binds it to `structlog` contextvars for the request lifetime. Header rides CORS via `expose_headers`. | `app/main.py::RequestIdMiddleware` + `app/core/logging.py::bind_request_context` | Lets clients stitch logs across the boundary without server-side per-handler glue; covers streaming (SSE / file) responses too |
+| L27 | `Task` carries TWO state columns: `task_state_json` (pre-execution carrier of `inputs` + `spec`, populated by `materialize_dag`) and `outputs_ref_json` (post-execution result, written by the dispatcher; surfaced on the wire as `TaskOut.outputs_ref`). Worker handlers read state via `app/workers/_task_io.py::read_state`. The previous overload of `outputs_ref_json` for both purposes caused a 19-file `__inputs`/`__spec` magic-key duplication and made `TaskOut.outputs_ref` impossible to type cleanly (it was both inputs-on-the-way-in and result-on-the-way-out). Migration `0007_task_state_json` adds the new column; pre-release with no in-flight data so no backfill needed. | `app/db/models.py::Task` + `alembic/versions/0007_task_state_json.py` + `app/services/job_service.py::materialize_dag` + `app/workers/_task_io.py` + `app/workers/dispatcher.py` (writes results to `outputs_ref_json`) + `docs/guides/aip_audit_2026.md` (smells round, gap #5) | Closes the highest-severity smell-audit finding; ships proposal P1's direction; unlocks future typed `outputs_ref` discrimination |
+| L28 | Singleton-aware `BlobStore` factory: backends declare `is_singleton: bool` (instance-state lifetime) and `get_blob_store()` caches singletons in a `_INSTANCES: dict[type, BlobStore]` map keyed by class. Replaces the previous `if cls is InMemoryBlobStore` class-conditional dispatch with a uniform flag check; future singleton backends (e.g. ConnectionPool-backed S3) opt in by overriding the flag. | `app/storage/blobs.py::{FSBlobStore,S3BlobStore,InMemoryBlobStore}.is_singleton` + `app/storage/blobs.py::get_blob_store` + `docs/guides/aip_audit_2026.md` (smells round, gap #6) | Eliminates a class-conditional-dispatch design smell; preserves `L15`'s singleton invariant uniformly; tested by the existing L15 regression guard |
+| L29 | `ColmapModBackend` aggregator (1004-line god class) is **deferred** as an intentional aggregator. Pycolmap's surface is genuinely broad (23 stage methods); a composition split into `app/adapters/colmap/{ba,extract,match,...}.py` modules would add navigation cost without closing a real defect. Revisit when methods exceed 30 or when per-stage testing becomes painful — at that point the file structure is `app/adapters/colmap/__init__.py` mixing in stage modules, with `ColmapModBackend` staying as the registry-facing identity. | `app/adapters/colmap_backend.py::ColmapModBackend` + `docs/guides/aip_audit_2026.md` (smells round, gap #9) | Tracked decision so the next reviewer doesn't reopen the same calibration question |
+| L30 | Job-submitting service helpers (`submit_features`, `submit_matches`, …) all route through `_submit_single_stage()` in `app/services/sfm_stage_service.py`. The helper wraps the common `[_stage_node(...)] + submit_job_dag(...)` tail so cross-cutting changes (priority, request-id propagation, capability auto-check) land in one place instead of 13. Reconstruction paths share a `_reconstruction_paths(tenant_id, r) -> (rec_root, sparse_dir)` helper. Web-layer 202+Location envelope construction lives in `app/api/v1/_helpers.py::accepted_response` (NOT in the schemas layer — schemas remain Pydantic-only). | `app/services/sfm_stage_service.py::_submit_single_stage` + `app/api/v1/_helpers.py::accepted_response` + `docs/guides/aip_audit_2026.md` (smells round 2) | Closes round-2 god-service finding + layering-inversion finding from the post-closure audit |
+
+## Cancelled with rationale
+
+These were considered, evaluated, and rejected. The rationale lives
+here so the conversation doesn't restart every six months.
+
+| ID | Item | Cancelled because |
+|---|---|---|
+| C1 | Unify S3 caches (`S3Cache` + `S3BlobStore._blob_cache`) | Two caches solve different problems: `S3Cache` is mutable-key etag-LRU for `S3Source` images; `S3BlobStore` cache is content-addressed by sha. Forcing them to share storage would be wrong; the actual code duplication is ~10 LOC of "atomic write + rename". |
+| C2 | Settings into composed submodels | Mostly cosmetic given env-var loader has to stay flat (`SFMAPI_X` not `SFMAPI_X__Y`). Section comments already group fields. Real submodel composition without changing env-var paths would be decoration. |
+| C3 | C++ live-server contract test | C++ ships no built-in HTTP transport (consumers BYO libcurl / cpp-httplib / Emscripten Fetch). `windows.h` macro pollution + `CreateProcess` env-var quirks + process-orphan cleanup all bit during the prototype. Coverage equivalence preserved through `test_contract.cpp` + Recorder transports. A C++ live test would only prove "the bound transport works" — which is the consumer's transport, not the SDK's. |
+| C4 | Unify the three resume primitives into one `Checkpoint` type | After mapping `MappingInput` (worker mid-task state) + sealed snapshot (publishable end-of-stage view) + `Task.cache_key` (content-addressed task-result lookup), they solve genuinely different problems. A unified type would be wider than the intersection of usefulness. See `docs/guides/resume_unification_proposal.md` for the analysis; the three small concrete actions (rename for clarity, add `resume_inventory` helper, document the split) are recommended but the unification itself is rejected. |
+| C5 | "Multipart-as-snapshot" S3 sealed-snapshot protocol | Bundling a snapshot's files into one tar/zip kills sparse reads, kills cross-snapshot dedup, kills HTTP caching. Misuse of multipart. Rejected in favor of the manifest-pointer approach. See `docs/guides/sealed_snapshots_on_s3_proposal.md` Option B. |
+| C6 | "Copy-then-delete" S3 sealed-snapshot protocol | Not atomic, doubles every write, wastes the dedup property. All disadvantages of the manifest-pointer approach with none of the advantages. See same proposal Option C. |
+
+## Proposed — waiting on user input
+
+Each of these has a long-form design doc on disk. Status flips to
+"approved" once the user signs off (and to "locked" once shipped).
+
+| ID | Proposal | Status | Source | Blocked on |
+|---|---|---|---|---|
+| P1 | Resume primitive **non**-unification: rename `MappingInput`-checkpoint → `mapping_state`, add `resume_inventory(job_id, recon_id)` helper, document the three-way split. | Ready to ship; ~2h work. | `docs/guides/resume_unification_proposal.md` | Single user `OK` |
+| P2 | Sealed snapshots on object storage via manifest-pointer + content-addressed blobs. | Ready to ship Phase a only (~6h); phases b–d follow. | `docs/guides/sealed_snapshots_on_s3_proposal.md` | Single user `OK` |
+| P3 | Postgres RLS for tenancy + 3-layer defense (app `WHERE` + DB policy + conformance audit). | Ready to ship if Postgres-only is committed (~6h for phases a+b). | `docs/guides/rls_postgres_tenancy_proposal.md` | **Postgres-only commit** (drops L6's dual-dialect rule) |
+| P4 | One-shot streaming endpoints under `/v1/oneshot/...`. Phase a (`oneshot/features`) **shipped as L17**. Phase b (`oneshot/localize`) **shipped as L18**. Phase c (`oneshot/match`) deferred until a real consumer asks. | Phases a + b shipped. | `docs/guides/oneshot_streaming_proposal.md` | Phase c: defer indefinitely |
+| P5 | Streaming SLAM endpoint at `/ws/v1/slam/sessions/{sid}/frames` with `Session` resource + `SlamBackend` Protocol + OpenVINS reference adapter. WebSocket bidirectional framing, frames in / poses out at ~30 Hz, sparse persistence (keyframes + on-demand map snapshots only). | Phases a-d ready to design; ~40-45h total. **Touches L4 (live map reads) + L9 (WebSocket)** — would unlock both. | `docs/guides/streaming_slam_proposal.md` | **Confirmed consumer with VIO data** + readiness to unlock L4 + L9. Otherwise: track as future architectural reference; recommend `slamapi` sibling service when needed. |
+
+## Decision flow
+
+When a new architectural question comes up:
+
+1. **Does it overlap a Locked decision?** → reopen requires
+   explicit "L# is being unlocked" entry here, plus a written
+   reason that updates the Source column.
+2. **Does it overlap a Cancelled item?** → check the rationale.
+   New evidence is required to reopen; "I think we should look at
+   this again" without new evidence isn't.
+3. **Does it overlap a Proposal?** → ping the user for the
+   blocking decision; don't make the call solo.
+4. **None of the above** → write a short proposal under
+   `docs/guides/<topic>_proposal.md` following the existing
+   structure: problem, options, recommendation, cost, what-it-
+   doesn't-do. Add a row to the Proposed table here.
+
+## Counts (snapshot)
+
+- Locked: 30
+- Cancelled: 6
+- Proposed: 5 (P4 phases a+b shipped as L17/L18; P1's direction shipped as L27; P5 + P2-P3 still proposed)
+- **Total tracked decisions: 41**
+
+Counts here exclude per-feature implementation decisions (route
+shapes, schema fields, SDK method names) — those live in their
+own docs and tests. This register tracks decisions that span
+multiple files / subsystems and where reverting would be expensive.

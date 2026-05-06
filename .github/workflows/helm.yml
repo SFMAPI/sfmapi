@@ -1,0 +1,58 @@
+name: Helm chart
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "deploy/helm/**"
+      - ".github/workflows/helm.yml"
+  pull_request:
+    paths:
+      - "deploy/helm/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-template:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.0"
+      - name: helm dependency update
+        run: helm dependency update deploy/helm/sfmapi
+      - name: helm lint
+        run: helm lint deploy/helm/sfmapi
+      - name: helm template (defaults)
+        run: helm template ci-default deploy/helm/sfmapi --debug > /tmp/default.yaml
+      - name: helm template (worker enabled)
+        run: |
+          helm template ci-worker deploy/helm/sfmapi --debug \
+            --set worker.enabled=true \
+            --set worker.image.repository=example.com/worker \
+            --set worker.image.tag=test \
+            --set web.ingress.enabled=true \
+            --set web.autoscaling.enabled=true \
+            > /tmp/worker.yaml
+      - name: kubeval (best-effort)
+        continue-on-error: true
+        run: |
+          set -e
+          curl -L -o kubeval.tar.gz \
+              https://github.com/instrumenta/kubeval/releases/download/v0.16.1/kubeval-linux-amd64.tar.gz
+          tar xf kubeval.tar.gz
+          ./kubeval --strict --skip-kinds CustomResourceDefinition /tmp/default.yaml
+          ./kubeval --strict --skip-kinds CustomResourceDefinition /tmp/worker.yaml
+      - name: Upload templates
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-templates
+          path: /tmp/*.yaml
+          retention-days: 14

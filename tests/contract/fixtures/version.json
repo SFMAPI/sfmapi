@@ -1,0 +1,9 @@
+{
+  "baxx_sha": "unknown",
+  "colmap_sha": "unknown",
+  "cuda_arch": "unknown",
+  "cudss_ver": "unknown",
+  "pycolmap_available": false,
+  "sam_model_sha": "unknown",
+  "sfmapi": "0.0.1"
+}

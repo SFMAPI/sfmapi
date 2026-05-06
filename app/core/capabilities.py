@@ -1,0 +1,255 @@
+"""Capability discovery — backend-neutral feature flags.
+
+sfmapi is an **API standard for SfM**, not a single-backend service.
+Every endpoint that depends on a non-trivial backend feature
+(matching, mapping, dense MVS, retrieval, localization, etc.)
+declares a capability flag. Servers advertise which flags they
+support via ``GET /v1/capabilities``; clients gate UI affordances on
+the response. Endpoints that hit an unsupported capability return
+``501 Not Implemented`` carrying the canonical capability name —
+never a generic 500.
+
+The registry below is the **canonical list** of capability strings.
+A backend that adds a feature MUST register a name here so clients
+have a stable id to test against. Backend implementations may report
+features beyond this list (and clients MUST treat unknown names as
+opaque), but anything reported here is part of the standard.
+
+Conformance levels
+------------------
+- **CORE** capabilities are required of every conforming server. They
+  cover project / dataset / image CRUD, uploads, jobs, and SSE
+  events. The corresponding routes never raise
+  :class:`CapabilityUnavailableError`.
+- **OPTIONAL** capabilities are advertised in
+  ``Capabilities.features``; clients MUST tolerate any subset.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+# ---- canonical capability names ------------------------------------------
+
+# CORE: every conforming server provides these. Listed for completeness.
+CORE_CAPABILITIES: tuple[str, ...] = (
+    "projects.crud",
+    "datasets.crud",
+    "images.crud",
+    "uploads.chunked",
+    "jobs.read",
+    "events.sse",
+    "spec.read",
+)
+
+# OPTIONAL feature flags — backend may advertise any subset.
+OPTIONAL_CAPABILITIES: tuple[str, ...] = (
+    # Feature pipeline (legacy bundled flag — kept for backwards compat)
+    "features.extract",
+    "matches.exhaustive",
+    "matches.sequential",
+    "matches.spatial",
+    "matches.vocabtree",
+    "matches.verify",
+    # Per-extractor capability (one per FeatureType)
+    "features.extract.sift",
+    "features.extract.superpoint",
+    "features.extract.aliked",
+    "features.extract.disk",
+    "features.extract.r2d2",
+    "features.extract.d2net",
+    # Pair-selection strategies (one per PairStrategy)
+    "pairs.exhaustive",
+    "pairs.sequential",
+    "pairs.spatial",
+    "pairs.vocabtree",
+    "pairs.retrieval",
+    "pairs.from_poses",
+    # Per-matcher capability (one per MatcherType)
+    "matchers.nn-mutual",
+    "matchers.nn-ratio",
+    "matchers.superglue",
+    "matchers.lightglue",
+    "matchers.loftr",
+    "matchers.mast3r",
+    # Mapping
+    "map.incremental",
+    "map.global",
+    "map.hierarchical",
+    "map.spherical",
+    # Refinement
+    "ba.standard",
+    "ba.two_stage",
+    "ba.featuremetric",
+    "triangulate.retri",
+    "relocalize.images",
+    "pgo.optimize",
+    # Multi-session / map operations
+    "recon.merge",
+    # Multi-image localization
+    "localize.batch",
+    "localize.sequence",
+    # Output
+    "export.ply",
+    "export.nvm",
+    "export.colmap_text",
+    "export.colmap_bin",
+    "export.nerfstudio",
+    "export.gaussian_splatting",
+    "export.instant_ngp",
+    "export.kapture",
+    # Dense MVS
+    "dense.patch_match_stereo",
+    "dense.stereo_fusion",
+    # Mesh + texture
+    "mesh.poisson",
+    "mesh.delaunay",
+    "mesh.texture",
+    # Retrieval / similarity
+    "similarity.dhash",
+    "similarity.vlad",
+    # Localization
+    "localize.from_memory",
+    # Geometry tooling
+    "georegister.sim3",
+    "spherical.to_cubemap",
+    "spherical.render_cubemap",
+    # Inputs
+    "pose_priors.read_write",
+    "inputs.imu",
+    "inputs.timestamps",
+    # Data ingest
+    "video.frame_extract",
+    "import.kapture",
+    # Snapshot inspection
+    "observations.by_image",
+    "observations.by_point",
+    # Segmentation
+    "segment.sam",
+)
+
+ALL_KNOWN: frozenset[str] = frozenset(CORE_CAPABILITIES + OPTIONAL_CAPABILITIES)
+
+
+@dataclass(frozen=True)
+class BackendInfo:
+    """Identifying info for the SfM backend powering this server."""
+
+    name: str  # e.g. "colmap_mod", "openmvg", "theia"
+    version: str  # backend version string
+    vendor: str = ""  # optional human-readable vendor
+
+    def as_dict(self) -> dict:
+        return {"name": self.name, "version": self.version, "vendor": self.vendor}
+
+
+CAPABILITIES_SCHEMA_VERSION = 1
+"""Wire schema version of the Capabilities envelope.
+
+Bump when the *shape* of the response changes (new top-level keys, a
+field type changes, etc.) — NOT when capability flags are added or
+flipped (those are negotiated via the dict itself). Clients MAY refuse
+to read a higher major than they understand.
+"""
+
+
+@dataclass
+class Capabilities:
+    """Snapshot of what the current deployment supports.
+
+    ``features`` MUST include every CORE capability (always ``True``).
+    OPTIONAL capabilities are present iff supported. Clients MUST
+    treat absence of an OPTIONAL key as ``False``.
+
+    ``schema_version`` is the wire-shape version (see
+    :data:`CAPABILITIES_SCHEMA_VERSION`); independent of feature flags.
+    """
+
+    backend: BackendInfo
+    features: dict[str, bool] = field(default_factory=dict)
+    schema_version: int = CAPABILITIES_SCHEMA_VERSION
+
+    def supports(self, capability: str) -> bool:
+        return bool(self.features.get(capability, False))
+
+    def as_dict(self) -> dict:
+        return {
+            "schema_version": self.schema_version,
+            "backend": self.backend.as_dict(),
+            "features": dict(self.features),
+        }
+
+
+def empty_capabilities(backend: BackendInfo) -> Capabilities:
+    """Start a Capabilities snapshot with all CORE flags set and every
+    OPTIONAL flag unset — backend code flips OPTIONAL flags ``True``
+    after probing what its underlying engine actually exposes."""
+    feats = {name: True for name in CORE_CAPABILITIES}
+    for name in OPTIONAL_CAPABILITIES:
+        feats[name] = False
+    return Capabilities(backend=backend, features=feats)
+
+
+def detect_capabilities() -> Capabilities:
+    """Probe the current deployment and report what it can do.
+
+    Asks the active :class:`~app.adapters.backend.SfmBackend` for its
+    canonical capability set, then layers on the small set of
+    capabilities sfmapi provides itself (``similarity.dhash``,
+    ``pose_priors.read_write``) regardless of the backend choice."""
+    from app.adapters.registry import get_backend
+    from app.core.config import get_settings
+
+    backend_impl = get_backend()
+    versions = backend_impl.runtime_versions()
+    backend = BackendInfo(
+        name=backend_impl.name,
+        version=versions.get("pycolmap_version") or backend_impl.version,
+        vendor=backend_impl.vendor,
+    )
+    caps = empty_capabilities(backend)
+    for name in backend_impl.capabilities():
+        if name in caps.features:
+            caps.features[name] = True
+    # sfmapi-internal capabilities — independent of the SfM backend.
+    caps.features["similarity.dhash"] = True
+    caps.features["pose_priors.read_write"] = True
+    # Observations / visibility sidecars are emitted by the snapshot
+    # writer regardless of the SfM backend.
+    caps.features["observations.by_image"] = True
+    caps.features["observations.by_point"] = True
+    # Pure wire-format / pure-Python features sfmapi handles itself.
+    caps.features["inputs.imu"] = True
+    caps.features["inputs.timestamps"] = True
+    caps.features["import.kapture"] = True
+    # Video frame extraction needs ffmpeg on PATH.
+    import shutil as _sh
+
+    if _sh.which("ffmpeg") is not None:
+        caps.features["video.frame_extract"] = True
+    settings = get_settings()
+    if getattr(settings, "sam_available", False):
+        caps.features["segment.sam"] = True
+    return caps
+
+
+def require(capability: str, *, reason: str = "") -> None:
+    """Raise :class:`CapabilityUnavailableError` if the current
+    deployment doesn't advertise ``capability``."""
+    from app.core.errors import CapabilityUnavailableError
+
+    caps = detect_capabilities()
+    if not caps.supports(capability):
+        raise CapabilityUnavailableError(capability=capability, reason=reason)
+
+
+__all__ = [
+    "ALL_KNOWN",
+    "CORE_CAPABILITIES",
+    "OPTIONAL_CAPABILITIES",
+    "BackendInfo",
+    "Capabilities",
+    "detect_capabilities",
+    "empty_capabilities",
+    "require",
+]

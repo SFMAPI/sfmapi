@@ -1,0 +1,28 @@
+name: panther
+description: |
+  Tanks & Temples Panther scene — known forward-facing-orbit case that
+  historically tripped BATA's 180° flip symmetry (see colmap_mod
+  CLAUDE.md "Known Issues"). We track it as a canary: if it suddenly
+  starts succeeding we want to know, and if it suddenly drops to
+  zero registrations we want to know louder.
+expected:
+  num_reg_images_min: 80
+  num_points3D_min: 50000
+  mean_reproj_err_max: 2.0
+recipe: incremental
+spec:
+  kind: incremental
+  min_num_matches: 30
+features:
+  use_gpu: true
+  sift_max_num_features: 16384
+matches:
+  mode: sequential
+  overlap: 20
+  use_gpu: true
+verify: {}
+source:
+  kind: local
+  image_root: ${BENCH_DATA_ROOT:-/mnt/bench-data}/panther
+  image_glob: "*.jpg"
+camera_model: SIMPLE_RADIAL

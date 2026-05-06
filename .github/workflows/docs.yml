@@ -1,0 +1,45 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "app/**"
+      - "clients/python/**"
+      - ".readthedocs.yaml"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".readthedocs.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install
+        run: |
+          uv venv
+          uv pip install -e .
+          uv pip install -e clients/python
+          uv pip install -r docs/requirements.txt
+      - name: Sphinx build (warning -> error)
+        run: |
+          uv run sphinx-build -b html -W --keep-going docs docs/_build/html
+      - name: Upload built site
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-html
+          path: docs/_build/html
+          retention-days: 14

@@ -1,0 +1,70 @@
+name: Bench (real GPU)
+
+on:
+  workflow_dispatch:
+    inputs:
+      datasets:
+        description: "Dataset names to run (space-separated). Empty = all."
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 9 * * *"   # 09:00 UTC nightly
+
+permissions:
+  contents: write   # allow committing results back to bench-results branch
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run:
+    runs-on: [self-hosted, gpu-cuda]
+    timeout-minutes: 240
+    env:
+      SFMAPI_BASE_URL: "http://localhost:8080"
+      SFMAPI_PYCOLMAP_AVAILABLE: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install
+        run: |
+          uv venv --seed
+          uv pip install -e ".[dev]"
+          uv pip install -e clients/python
+          uv pip install pyyaml click
+      - name: Bring up server stack (compose)
+        run: |
+          bash scripts/smoke.sh --keep   # leaves stack up after smoke
+      - name: Run benches
+        env:
+          DATASETS: ${{ github.event.inputs.datasets }}
+        run: |
+          if [ -z "$DATASETS" ]; then
+            uv run python -m bench.cli run --all
+          else
+            FLAGS=""
+            for d in $DATASETS; do
+              FLAGS="$FLAGS --dataset $d"
+            done
+            uv run python -m bench.cli run $FLAGS
+          fi
+      - name: Lint regressions
+        run: uv run python -m bench.cli lint
+      - name: Commit results
+        if: success()
+        run: |
+          git config user.name  "sfmapi-bench"
+          git config user.email "bench@sfmapi.dev"
+          git checkout -B bench-results
+          git add bench/results
+          if git diff --cached --quiet; then
+            echo "no new results"
+            exit 0
+          fi
+          git commit -m "bench: results for ${{ github.sha }}"
+          git push -f origin bench-results
+      - name: Tear down compose
+        if: always()
+        run: |
+          docker compose -p sfmapi-smoke -f deploy/docker-compose.yml down -v || true

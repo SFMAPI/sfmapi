@@ -1,0 +1,31 @@
+name: fountain
+description: |
+  ETH3D fountain dataset (~11 images of a fountain). Compact + textured;
+  finishes incremental SfM in seconds on a modest GPU. Used as the smoke
+  benchmark — if this regresses, something is broken upstream.
+expected:
+  num_reg_images_min: 10
+  num_points3D_min: 5000
+  mean_reproj_err_max: 1.5
+recipe: incremental
+spec:
+  kind: incremental
+  min_num_matches: 15
+  multiple_models: false
+features:
+  use_gpu: true
+  sift_max_num_features: 8192
+matches:
+  mode: exhaustive
+  use_gpu: true
+verify: {}
+
+# How the bench harness tells the worker where to read images from.
+# Two modes:
+#   - kind: local  -> server worker reads from this filesystem path
+#   - kind: s3     -> server worker pulls from this s3 source
+source:
+  kind: local
+  image_root: ${BENCH_DATA_ROOT:-/mnt/bench-data}/fountain
+  image_glob: "*.jpg"
+camera_model: SIMPLE_RADIAL

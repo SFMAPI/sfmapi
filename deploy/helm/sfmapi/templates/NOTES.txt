@@ -1,0 +1,30 @@
+sfmapi {{ .Chart.AppVersion }} installed.
+
+Web service:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "sfmapi.fullname" . }}-web {{ .Values.web.service.port }}:{{ .Values.web.service.port }}
+  curl http://127.0.0.1:{{ .Values.web.service.port }}/healthz
+
+Database URL the web tier sees:
+  {{ include "sfmapi.dbUrl" . }}
+Redis URL:
+  {{ include "sfmapi.redisUrl" . }}
+
+{{- if not .Values.worker.enabled }}
+
+Worker DaemonSet is disabled. Enable it with:
+  helm upgrade --install ... \
+    --set worker.enabled=true \
+    --set worker.image.repository=ghcr.io/your-org/sfmapi-worker
+
+The worker image must contain the colmap_mod / pycolmap wheel built
+against your cluster's CUDA + cuDSS versions. See
+https://sfmapi.dev/guides/deployment for guidance.
+{{- end }}
+
+{{- if eq .Values.env.authMode "api_key" }}
+
+Auth is in api_key mode. Issue a key:
+  curl -sX POST http://127.0.0.1:{{ .Values.web.service.port }}/v1/admin/api-keys \
+       -H 'Content-Type: application/json' \
+       -d '{"tenant_id":"my-tenant","name":"oncall"}'
+{{- end }}

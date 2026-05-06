@@ -1,0 +1,50 @@
+# Changelog
+
+All notable changes to **sfmapi** are recorded here.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+`Unreleased` is auto-populated by
+[release-drafter](https://github.com/release-drafter/release-drafter)
+based on merged PR labels (see `.github/release-drafter.yml`). At
+release time, the drafted notes are promoted to a versioned section
+below and a new `Unreleased` block is started.
+
+## [Unreleased]
+
+_Drafted by release-drafter from merged PRs since the last tag._
+
+## [0.0.1] - 2026-05-02
+
+### Added
+- Phase 0 skeleton: FastAPI app, tenancy scaffold (`tenant_id` everywhere),
+  blob store, chunked upload, projects/datasets/images CRUD,
+  `runtime_versions` table.
+- Phase 1 orchestrator + workers: in-house Job→Task DAG, ARQ executor,
+  per-task lease/heartbeat, sealed-snapshot writer, ProgressEvent v1
+  schema, SSE streaming for `/v1/jobs/{id}/events`. SfM stage endpoints
+  for `features`, `matches`, `verify`.
+- Phase 2 incremental SfM: `IncrementalSpec` discriminated union,
+  `MappingInput` checkpoint primitives, standalone `bundle_adjust`,
+  `triangulate`, `relocalize`, `pgo`, `export`, paginated reads,
+  binary points format (`application/x-sfm-points-v1`).
+- Phase 3 segmentation: SAM lazy adapter, `MaskSet` model,
+  `model_artifact` registry with sha-verified install.
+- Phase 4 recipes: `pipelines/{incremental|global|hierarchical|spherical}`
+  sugar endpoint that builds a 4-node DAG.
+- Phase 5 production hardening: S3 source GA + global LRU cache,
+  fair-share scheduler, Prometheus metrics, full resume from
+  `MappingInput`, API-key auth, structured logging with per-job
+  `log.jsonl`, snapshot/job GC.
+- Deployment: `deploy/docker-compose.yml` (web + redis + postgres),
+  `deploy/Dockerfile.web`, `deploy/install-worker.ps1` +
+  `deploy/bootstrap-worker.ps1` (Windows + CUDA), `deploy/README.md`,
+  `worker-installer.zip` produced at release time.
+- CI: `ci.yml` (lint, test-sqlite, test-postgres, smoke),
+  `release.yml` (GHCR + GH release + worker-installer.zip),
+  `worker-tests.yml` (self-hosted GPU runner, real pycolmap),
+  `dependabot.yml`, `renovate.json` (tracks `colmap_mod` ref).
+
+[Unreleased]: https://github.com/opsiclear/sfmapi/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/opsiclear/sfmapi/releases/tag/v0.0.1

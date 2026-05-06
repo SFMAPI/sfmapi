@@ -1,0 +1,216 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (vX.Y.Z). Required for manual run."
+        required: true
+
+permissions:
+  contents: write       # create release + upload assets
+  packages: write       # push to GHCR
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/web
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.set.outputs.tag }}
+      version: ${{ steps.set.outputs.version }}
+    steps:
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "Invalid tag format: $TAG (expected vX.Y.Z[-pre])" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+  build-and-push:
+    needs: resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ needs.resolve.outputs.tag }}
+            type=raw,value=${{ needs.resolve.outputs.version }}
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
+          labels: |
+            org.opencontainers.image.title=sfmapi-web
+            org.opencontainers.image.version=${{ needs.resolve.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=Apache-2.0
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.web
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+  publish-release:
+    needs: [resolve, build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install (for OpenAPI dump)
+        run: uv sync --extra dev
+      - name: Dump OpenAPI document
+        run: uv run python scripts/dump_openapi.py --out openapi.json --indent 2
+      - name: Stage release assets
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p _release _zip/worker-installer
+          # Loose assets at the top level of the release.
+          cp deploy/install-worker.ps1   _release/
+          cp deploy/uninstall-worker.ps1 _release/
+          cp deploy/docker-compose.yml   _release/
+          cp deploy/Dockerfile.web       _release/
+          cp deploy/.env.example         _release/
+          cp deploy/README.md            _release/DEPLOY.md
+          cp scripts/smoke.sh            _release/
+          cp scripts/smoke.ps1           _release/
+          cp openapi.json                _release/openapi.json
+
+          # Worker installer bundle: an operator can download a single
+          # zip and run bootstrap-worker.ps1 from inside it. Include the
+          # uv.lock so the venv resolves identical versions to the
+          # tested build.
+          cp deploy/install-worker.ps1     _zip/worker-installer/
+          cp deploy/uninstall-worker.ps1   _zip/worker-installer/
+          cp deploy/bootstrap-worker.ps1   _zip/worker-installer/
+          cp deploy/README.md              _zip/worker-installer/DEPLOY.md
+          if [ -f uv.lock ]; then
+            cp uv.lock                     _zip/worker-installer/uv.lock
+          fi
+          # Pin a manifest of versions inside the bundle.
+          cat > _zip/worker-installer/MANIFEST.txt <<EOF
+          sfmapi-worker-installer
+          tag:           $TAG
+          built-at:      $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          contents:
+            - install-worker.ps1
+            - uninstall-worker.ps1
+            - bootstrap-worker.ps1
+            - DEPLOY.md
+          $( [ -f uv.lock ] && echo "  - uv.lock" )
+          EOF
+          (cd _zip && zip -r "../_release/worker-installer-${TAG}.zip" worker-installer >/dev/null)
+
+          (cd _release && sha256sum * > SHA256SUMS)
+      - name: Draft notes from PR labels (release-drafter)
+        id: drafter
+        uses: release-drafter/release-drafter@v6
+        with:
+          config-name: release-drafter.yml
+          tag: ${{ needs.resolve.outputs.tag }}
+          version: ${{ needs.resolve.outputs.version }}
+          publish: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compose release body
+        id: notes
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          DRAFT_BODY: ${{ steps.drafter.outputs.body }}
+        run: |
+          set -euo pipefail
+          {
+            if [ -n "${DRAFT_BODY:-}" ]; then
+              printf '%s\n' "$DRAFT_BODY"
+            else
+              echo "## sfmapi $TAG"
+              echo
+              echo "_(release-drafter produced no body; falling back to a static section.)_"
+            fi
+            echo
+            echo "---"
+            echo
+            echo "### Web container"
+            echo
+            echo "\`\`\`"
+            echo "docker pull $IMAGE:$TAG"
+            echo "\`\`\`"
+            echo
+            echo "Tags also pushed: \`$VERSION\`, \`latest\`, \`sha-<short>\`."
+            echo
+            echo "### Worker installer (Windows + CUDA)"
+            echo
+            echo "Download \`worker-installer-$TAG.zip\`, extract it on the GPU host, then run:"
+            echo "\`\`\`powershell"
+            echo "Expand-Archive worker-installer-$TAG.zip -DestinationPath C:\\sfmapi-installer"
+            echo "cd C:\\sfmapi-installer\\worker-installer"
+            echo ".\\bootstrap-worker.ps1 \`"
+            echo "    -DbUrl 'postgresql+psycopg://sfm:secret@db.internal:5432/sfmapi' \`"
+            echo "    -RedisUrl 'redis://redis.internal:6379/0' \`"
+            echo "    -GpuUuid 0"
+            echo "\`\`\`"
+            echo
+            echo "Or for already-installed hosts, just \`install-worker.ps1\`. See \`DEPLOY.md\` for full instructions."
+            echo
+            echo "### OpenAPI"
+            echo
+            echo "The full OpenAPI 3.1 document for the v1 surface ships as \`openapi.json\` below."
+            echo "Browse interactively at https://sfmapi.dev/reference/openapi (built from the same artifact)."
+          } > release_body.md
+          echo "path=release_body.md" >> "$GITHUB_OUTPUT"
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
+          name: sfmapi ${{ needs.resolve.outputs.tag }}
+          body_path: ${{ steps.notes.outputs.path }}
+          fail_on_unmatched_files: true
+          files: |
+            _release/install-worker.ps1
+            _release/uninstall-worker.ps1
+            _release/docker-compose.yml
+            _release/Dockerfile.web
+            _release/.env.example
+            _release/DEPLOY.md
+            _release/smoke.sh
+            _release/smoke.ps1
+            _release/worker-installer-*.zip
+            _release/openapi.json
+            _release/SHA256SUMS
