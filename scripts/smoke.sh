@@ -149,7 +149,7 @@ LAST=$((SIZE - 1))
 curl -fsS -X PATCH "${BASE_URL}/v1/uploads/${UID_VAL}" \
     --data-binary "@${TMP_BIN}" \
     -H "Content-Range: bytes 0-${LAST}/${SIZE}" >/dev/null
-FIN_JSON="$(curl_json POST "/v1/uploads/${UID_VAL}/finalize" '{}')"
+FIN_JSON="$(curl_json POST "/v1/uploads/${UID_VAL}:finalize" '{}')"
 BLOB_SHA="$(jget "$FIN_JSON" blob_sha)"
 [[ "$BLOB_SHA" == "$SHA" ]] || { echo "sha mismatch: $BLOB_SHA != $SHA"; exit 1; }
 rm -f "$TMP_BIN"
