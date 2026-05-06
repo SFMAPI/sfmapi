@@ -45,6 +45,12 @@ jobs:
               --version 21.2.14 \
               -d deploy/helm/sfmapi/charts
           ls -la deploy/helm/sfmapi/charts
+      - name: helm dependency build
+        # Reconciles `Chart.lock` from the .tgz files we just pulled.
+        # `helm template` refuses to run when subcharts in charts/
+        # are present but Chart.lock is missing or out of sync.
+        # `--skip-refresh` keeps it from re-pulling.
+        run: helm dependency build deploy/helm/sfmapi --skip-refresh
       - name: helm lint
         run: helm lint deploy/helm/sfmapi
       - name: helm template (defaults)
