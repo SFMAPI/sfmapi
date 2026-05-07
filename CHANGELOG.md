@@ -15,6 +15,19 @@ below and a new `Unreleased` block is started.
 
 _Drafted by release-drafter from merged PRs since the last tag._
 
+### Changed
+- Reorganized the published documentation homepage and sidebar around
+  user journeys: start, API usage, backend implementation, operations,
+  SDKs, specification, and contribution.
+- Cleaned up SDK documentation to distinguish generated Python and
+  TypeScript surfaces from the header-only C++ client.
+- Removed internal design notes, AIP audits, proposals, and legacy
+  Python client API pages from the public site while keeping them in
+  the repository for development history.
+- Clarified authentication, admin-route, quota, backend-output, and
+  runtime-version documentation to match current implementation
+  behavior.
+
 ## [0.0.1] - 2026-05-02
 
 ### Added
