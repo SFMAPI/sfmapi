@@ -5,9 +5,9 @@ Typed TypeScript SDK for [sfmapi](https://github.com/sfmapi/sfmapi).
 Works in browsers (modern fetch + ReadableStream) and Node ≥ 20.
 
 ```bash
-npm install @sfmapi/client
-# or
-pnpm add @sfmapi/client
+cd clients/typescript
+npm install
+npm run build
 ```
 
 ## Usage

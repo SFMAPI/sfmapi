@@ -121,7 +121,8 @@ html_theme_options = {
     ],
     "announcement": (
         "<strong>Pre-release.</strong> API shapes may change before 1.0. "
-        '<a href="guides/quickstart.html">Start with the quickstart</a>'
+        '<a href="https://sfmapi.github.io/guides/quickstart.html">'
+        "Start with the quickstart</a>"
     ),
 }
 

@@ -14,7 +14,7 @@ tree per reconstruction.
 ```{mermaid}
 flowchart LR
     subgraph Client["Client"]
-        SDK["Generated SDKs"]
+        SDK["SDKs and clients"]
         UI["CLI, curl, browser"]
     end
 
@@ -33,7 +33,7 @@ flowchart LR
     subgraph Persistence["Persistence"]
         DB[(SQL database)]
         Blobs[(Blob store)]
-        WS[(Workspace snapshots)]
+        WS[(Workspace files)]
     end
 
     subgraph Multi["Optional multi-instance mode"]
@@ -41,19 +41,23 @@ flowchart LR
         Sup["Supervisor and workers"]
     end
 
+    TaskRunner["Task runner"]
+
     SDK --> API
     UI --> API
     API -->|writes| DB
     API -->|writes| Blobs
     API -->|reads snapshots| WS
 
-    Inline -.->|standalone| Backend
+    Inline -.->|standalone| TaskRunner
     Sup -.->|polls and leases| DB
     Sup -.->|consumes| Redis
-    Sup -.-> Backend
+    Sup -.-> TaskRunner
+    TaskRunner --> Backend
     Backend -->|reads bytes| Blobs
-    Backend -->|writes snapshots| WS
-    Backend -->|writes events| WS
+    Backend -->|returns artifacts| TaskRunner
+    TaskRunner -->|seals snapshots| WS
+    TaskRunner -->|writes events| WS
     API -->|tails events| WS
 ```
 

@@ -1,8 +1,9 @@
-"""Admin endpoints — issue/revoke API keys.
+"""Admin endpoints for issuing and revoking API keys.
 
-Mounted at `/v1/admin/...`. In v0 these are unauthenticated when
-`auth_mode=none` (single-user dev). Production deployments must front
-this with an admin-only auth layer (e.g., a deploy-time master key).
+Mounted at `/v1/admin/...`. These are operator endpoints, not
+tenant-scoped API endpoints, and are not protected by sfmapi's tenant
+API-key dependency. Production deployments must front this namespace
+with an admin-only auth layer.
 """
 
 from __future__ import annotations
@@ -52,15 +53,15 @@ async def issue(
 ) -> IssueKeyResponse:
     """Mint a fresh API key bound to a tenant.
 
-    Returns the raw key in ``raw_key`` exactly once — only a salted
-    hash is persisted, so callers MUST capture the value here. Use
-    the key as the ``Bearer`` token in ``Authorization`` against any
-    tenant-scoped route once ``auth_mode != "none"``.
+    Returns the raw key in ``raw_key`` exactly once; only a salted hash
+    is persisted, so callers MUST capture the value here. Use the key
+    as the ``Bearer`` token in ``Authorization`` against tenant-scoped
+    routes once ``auth_mode == "api_key"``.
 
-    WARNING — auth_mode=none default
-    --------------------------------
-    Until ``SFMAPI_AUTH_MODE`` is flipped to ``api_key``, this route
-    is itself unauthenticated. Production deployments MUST front
+    WARNING - operator route
+    ------------------------
+    This route is not tenant-scoped and is not protected by sfmapi's
+    tenant API-key dependency. Production deployments MUST front
     ``/v1/admin/...`` with an admin-only auth layer (deploy-time
     master key, mesh-level mTLS, infra-network-only). See ``L2`` in
     ``decisions.md``.
@@ -83,11 +84,11 @@ async def revoke(
 
     Soft-delete: the row stays for audit, ``revoked_at`` is stamped
     and ``revoked=true`` shipped on the next read. Subsequent auth
-    attempts with that key will fail. Idempotent — revoking an
+    attempts with that key will fail. Idempotent; revoking an
     already-revoked key is a 200 no-op.
 
-    See WARNING on ``POST /v1/admin/api-keys`` — this route is
-    unauthenticated when ``auth_mode=none`` (the dev default).
+    See WARNING on ``POST /v1/admin/api-keys``; this route is an
+    operator route and must be protected by deployment infrastructure.
     """
     row = await session.get(ApiKey, api_key_id)
     if row is None:
@@ -107,11 +108,11 @@ async def revoke(
 async def list_keys(session: AsyncSession = Depends(get_db)) -> list[ApiKeyOut]:
     """List every API key on file (active + revoked).
 
-    Raw-key material is NEVER returned — use :func:`issue` and capture
+    Raw-key material is NEVER returned; use :func:`issue` and capture
     the value at creation time. Ordered by ``created_at`` ascending.
 
-    See WARNING on ``POST /v1/admin/api-keys`` — this route is
-    unauthenticated when ``auth_mode=none`` (the dev default).
+    See WARNING on ``POST /v1/admin/api-keys``; this route is an
+    operator route and must be protected by deployment infrastructure.
     """
     rows = (await session.execute(select(ApiKey).order_by(ApiKey.created_at))).scalars().all()
     return [

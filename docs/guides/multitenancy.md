@@ -36,13 +36,15 @@ is a config flip plus an API key rollout.
    Returns the raw key once — store it. The DB only persists
    `sha256(raw_key)`.
 
-4. All requests now require `Authorization: Bearer sfm_xxx`. The
-   `current_tenant()` dep resolves the bearer to a tenant and injects
-   it.
+4. Tenant-scoped API requests now require `Authorization: Bearer
+   sfm_xxx`. The `current_tenant()` dependency resolves the bearer to a
+   tenant and injects it.
 
-`/v1/admin/api-keys` itself is unauthenticated under `auth_mode=none`
-and **must be fronted by an admin-only auth layer in production**
-(e.g., a deploy-time master key).
+`/v1/admin/api-keys` is intentionally an operator surface, not a
+tenant-scoped API. It is not protected by sfmapi's tenant API-key
+dependency in either auth mode and **must be fronted by an admin-only
+auth layer in production** (for example a deploy-time master key,
+private control-plane network, mTLS, or an ingress policy).
 
 ## Quotas
 
@@ -52,16 +54,20 @@ and **must be fronted by an admin-only auth layer in production**
    :no-index:
 ```
 
-Two enforced quotas (when `auth_mode=api_key`):
+Two quota hooks exist when `auth_mode=api_key`:
 
-- **storage**: total bytes attributed to the tenant (uploaded blobs,
-  cached S3 bytes, sealed snapshots).
+- **storage upload gate**: upload session creation checks the tenant's
+  configured storage budget against the requested upload size.
 - **gpu_seconds_per_day**: rolling 24-hour sum of `gpu_seconds`
   recorded against tenant Tasks.
 
 Quotas live on the `tenant_quota` table; either column NULL means
 "no limit." Hits return `429 quota_exceeded` (see
 [errors](../reference/errors.md)).
+
+Shared S3 cache bytes and sealed snapshot bytes are not yet separately
+attributed in this quota gate; operators should treat the storage quota
+as upload-focused until that accounting is wired.
 
 ## Fair-share scheduling
 

@@ -200,12 +200,12 @@ context.
 `?status=` filters on the closed `JobStatus` set: `pending |
 running | succeeded | failed | cancelled | cancelled_dirty`.
 
-## Admin (auth-mode dependent)
+## Admin
 
-`/v1/admin/api-keys` are open under `auth_mode=none` (development
-default). In production deployments enable `auth_mode=api_key` and
-restrict admin routes via the deployment's auth layer; sfmapi itself
-treats them like every other route until then.
+`/v1/admin/api-keys` are operator routes. They are not tenant-scoped
+and are not protected by sfmapi's tenant API-key dependency, so
+production deployments must restrict them with an external admin-only
+control-plane layer.
 
 | Method | Path | Body | Returns |
 |---|---|---|---|

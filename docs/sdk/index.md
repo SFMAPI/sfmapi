@@ -1,38 +1,74 @@
 # SDKs
 
-Three officially-supported clients, all generated from the same
-OpenAPI spec, with hand-written ergonomics shims for chunked
-upload, SSE event streaming, binary points/depth/normal parsing,
-typed exceptions, and `wait_for_job` / `submit_and_wait` /
-`submit_and_stream` helpers.
+sfmapi ships three client surfaces that target the same `/v1` wire
+contract. Python and TypeScript generated surfaces are derived from the
+OpenAPI spec. The C++17 client is a maintained header-only wire library
+and pluggable HTTP client checked against the same fixtures.
 
-| Language | Install | Source |
+| Language | Current install path | Notes |
 |---|---|---|
-| Python | `pip install ./clients/python/sfmapi_client_gen` | [`clients/python/`](https://github.com/SFMAPI/sfmapi/tree/main/clients/python) |
-| TypeScript | `npm install @sfmapi/client` | [`clients/typescript/`](https://github.com/SFMAPI/sfmapi/tree/main/clients/typescript) |
-| C++17 | header-only, [`clients/cpp/`](https://github.com/SFMAPI/sfmapi/tree/main/clients/cpp) | [`clients/cpp/`](https://github.com/SFMAPI/sfmapi/tree/main/clients/cpp) |
+| Python generated SDK | `pip install ./clients/python/sfmapi_client_gen` | Use `sfmapi_client_gen.Client` plus helpers in `sfmapi_client_gen._ergonomics`. |
+| TypeScript | `cd clients/typescript && npm install && npm run build` | Package metadata is under `clients/typescript/`; build from this repository until the package is published. |
+| C++17 | Add `clients/cpp/` as a header-only dependency | Bring your own HTTP transport and JSON parser. |
 
-All three speak the same `/v1` REST API and share the same model
-shapes. Wire fixtures in `tests/contract/fixtures/` are replayed
-through every SDK, so a server change ripples to all three or fails
-CI immediately.
+Wire fixtures in `tests/contract/fixtures/` are replayed through the
+clients, so a server change must propagate across the client surfaces or
+CI fails.
 
-A **deprecated hand-rolled Python SDK** at
-`clients/python/sfmapi_client/` ships in parallel for now; new
-consumers should pick the generated SDK above.
+## Python generated SDK
 
-## Python
-
-```{include} ../../clients/python/README.md
+```bash
+pip install ./clients/python/sfmapi_client_gen
 ```
 
-## TypeScript
+```python
+from sfmapi_client_gen import Client
+from sfmapi_client_gen._ergonomics import parse_points_binary, wait_for_job
 
-```{include} ../../clients/typescript/README.md
+client = Client(base_url="http://localhost:8080")
 ```
 
-## C++
+The generated package contains endpoint modules under
+`sfmapi_client_gen.api`, typed models under `sfmapi_client_gen.models`,
+and hand-written helpers for chunked upload, SSE event streaming,
+binary point parsing, and job waiting.
 
-```{include} ../../clients/cpp/README.md
+## TypeScript client
+
+```bash
+cd clients/typescript
+npm install
+npm run build
 ```
 
+```ts
+import { createSfmApiClient } from "@sfmapi/client/generated";
+
+const client = createSfmApiClient({ baseUrl: "http://localhost:8080" });
+```
+
+The package is browser and Node 20 oriented. The repository-local build
+produces both ESM and CJS outputs plus generated OpenAPI types.
+
+## C++17 client
+
+```cmake
+add_subdirectory(third_party/sfmapi/clients/cpp)
+target_link_libraries(your_target PRIVATE sfmapi_cpp)
+```
+
+The C++ client provides wire structs, binary parsers, and a pluggable
+HTTP client. It intentionally does not bundle a JSON library or HTTP
+transport.
+
+## Legacy Python client
+
+A deprecated hand-written Python client at `clients/python/sfmapi_client/`
+ships in parallel for now. New consumers should prefer the generated
+SDK above; the legacy API reference remains available for existing
+users:
+
+- {doc}`Legacy sync client <sync>`
+- {doc}`Legacy async client <async>`
+- {doc}`Legacy models <models>`
+- {doc}`Legacy errors <errors>`

@@ -1,118 +1,147 @@
 # sfmapi
 
-**A backend-agnostic REST API for Structure-from-Motion workflows.**
+**An HTTP API for running Structure-from-Motion workflows without tying
+clients to one SfM engine.**
 
-sfmapi defines the wire contract, orchestration shell, sealed snapshots,
-content-addressed storage, and SDK-facing endpoints. Concrete SfM engines
-register as separate backends.
+sfmapi defines the server contract, long-running job model, progress
+streaming, chunked uploads that finalize into content-addressed blobs,
+sealed reconstruction snapshots, and SDK-facing endpoints. Concrete SfM
+engines live in backend packages and register with the server at
+startup.
+
+## Core idea
+
+Client applications call the sfmapi REST API. The server records
+long-running work as jobs and tasks, workers drive a registered backend
+engine, and task runners seal readable reconstruction outputs into
+durable snapshots.
+
+## Choose your path
 
 ::::{grid} 2
 :gutter: 3
 
-:::{grid-item-card} Five-minute install
-:link: guides/quickstart
-:link-type: doc
+:::{grid-item-card} Try it quickly
+Run a local server with SQLite, filesystem blobs, and an in-process
+worker.
 
-`uv pip install`, `alembic upgrade`, `uvicorn`. SQLite on disk,
-filesystem blobs, in-process worker. No Docker, no Redis.
+- {doc}`Quickstart <guides/quickstart>`
+- {doc}`First REST workflow with curl <reference/curl_tour>`
 :::
 
-:::{grid-item-card} Curl tour
-:link: reference/curl_tour
-:link-type: doc
+:::{grid-item-card} Call the API
+Create resources, submit long-running jobs, watch progress, and read
+sealed reconstruction snapshot files.
 
-Project, upload, dataset, image registration, recipe pipeline,
-polling, and sealed snapshots from a shell.
+- {doc}`REST API reference <reference/api>`
+- {doc}`OpenAPI <reference/openapi>`
 :::
 
-:::{grid-item-card} Backend integration
-:link: guides/backend_implementations
-:link-type: doc
+:::{grid-item-card} Use a client library
+Use generated Python/TypeScript surfaces plus the header-only C++17
+client, all checked against the same wire fixtures.
 
-sfmapi ships no engine. Make `pycolmap`, OpenSfM, hloc, or your
-own fork power the API in one `register_backend()` call.
+- {doc}`SDK overview <sdk/index>`
+- {doc}`Legacy Python sync client <sdk/sync>`
 :::
 
-:::{grid-item-card} REST API reference
-:link: reference/api
-:link-type: doc
+:::{grid-item-card} Build or operate
+Implement `SfmBackend`, advertise capabilities, register the backend,
+deploy web/worker tiers, and configure storage and auth.
 
-Resource model, endpoint groups, request/response schemas. The
-canonical machine-readable contract is the
-[OpenAPI page](reference/openapi.md).
+- {doc}`Implement a backend <guides/backend_implementations>`
+- {doc}`Deployment <guides/deployment>`
 :::
 
-:::{grid-item-card} Architecture
-:link: guides/architecture
-:link-type: doc
+:::{grid-item-card} Reference and rationale
+Look up the normative contract, API behavior, design decisions, and
+project history.
 
-How the web tier, orchestrator, workers, and snapshot store fit
-together. Why the boundaries exist.
-:::
-
-:::{grid-item-card} Spec
-:link: spec
-:link-type: doc
-
-`SFMAPI-SPEC.md` describes the v1 surface other tools can
-implement. Resource model, conventions, conformance rules.
+- {doc}`SFMAPI specification <spec>`
+- {doc}`Architecture <guides/architecture>`
+- {doc}`Decision register <guides/decisions>`
 :::
 
 ::::
 
-## What's inside
+## More entry points
+
+- {doc}`Authentication <reference/auth>` and {doc}`error handling <reference/errors>`
+  for production callers.
+- {doc}`Storage <guides/storage>` and {doc}`jobs and progress <guides/jobs_and_progress>`
+  for backend and operator context.
+- {doc}`Configuration <reference/configuration>`, {doc}`multi-tenancy <guides/multitenancy>`,
+  and {doc}`CLI/scripts <reference/cli>` for deployments.
+- {doc}`AIP audit <guides/aip_audit_2026>`, proposals, and the
+  {doc}`changelog <changelog>` for design history.
+
+## Status
+
+Pre-release. API shapes may change before 1.0. The current tree ships
+the REST server, Python/TypeScript/C++ clients, SQLite and Postgres
+support, and CI coverage for the wire contract.
+
+This repository ships no concrete SfM backend on purpose; it is the
+contract. Backend implementations such as pycolmap, OpenSfM, hloc, or
+custom forks live in their own packages.
 
 ```{toctree}
-:caption: Guides
+:caption: Start here
+:hidden:
 :maxdepth: 2
 
 guides/quickstart
-guides/backend_implementations
-guides/architecture
-guides/storage
-guides/jobs_and_progress
-guides/multitenancy
-guides/deployment
-guides/contributing
+First REST workflow with curl <reference/curl_tour>
 ```
 
 ```{toctree}
-:caption: Reference
+:caption: Use the API
+:hidden:
 :maxdepth: 2
 
 reference/api
 reference/openapi
 reference/auth
-reference/curl_tour
 reference/errors
+```
+
+```{toctree}
+:caption: Build backends
+:hidden:
+:maxdepth: 2
+
+guides/backend_implementations
+guides/architecture
+guides/storage
+guides/jobs_and_progress
+```
+
+```{toctree}
+:caption: Operate sfmapi
+:hidden:
+:maxdepth: 2
+
+guides/deployment
 reference/configuration
+guides/multitenancy
 reference/cli
 ```
 
 ```{toctree}
-:caption: Server modules
-:maxdepth: 1
-
-server/orchestrator
-server/storage
-server/workers
-server/adapters
-server/services
-```
-
-```{toctree}
-:caption: Python SDK
+:caption: SDKs and clients
+:hidden:
 :maxdepth: 2
 
-sdk/index
-sdk/sync
-sdk/async
-sdk/models
-sdk/errors
+SDK overview <sdk/index>
+Legacy Python sync client <sdk/sync>
+Legacy Python async client <sdk/async>
+Legacy Python models <sdk/models>
+Legacy Python errors <sdk/errors>
 ```
 
 ```{toctree}
-:caption: Decisions & proposals
+:caption: Understand the system
+:hidden:
 :maxdepth: 1
 
 guides/decisions
@@ -125,24 +154,24 @@ guides/streaming_slam_proposal
 ```
 
 ```{toctree}
-:caption: Project
+:caption: Specification
+:hidden:
 :maxdepth: 1
 
 spec
+```
+
+```{toctree}
+:caption: Contribute and internals
+:hidden:
+:maxdepth: 1
+
+guides/contributing
+server/orchestrator
+server/storage
+server/workers
+server/adapters
+server/services
 changelog
 GitHub repository <https://github.com/sfmapi/sfmapi>
 ```
-
-## Status
-
-Pre-release. Wire surface, orchestration shell, three SDKs (Python,
-TypeScript, C++) on the `main` branch, dual-DB (SQLite + Postgres)
-parity, full CI matrix green, AGPL-3.0-or-later licensed.
-
-This repository ships no concrete SfM backend on purpose; it is the
-contract. Backend implementations (pycolmap, OpenSfM, hloc, custom
-forks) live in their own packages and register at startup with
-`register_backend()`. See the
-[decision register](guides/decisions.md) for the locked
-architectural decisions and [the changelog](changelog.md) for what
-landed in each release.
