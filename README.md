@@ -11,6 +11,18 @@ repositories, satisfy `app.adapters.backend.SfmBackend`, and register
 at startup via `register_backend("name", Backend)`. A no-op
 `StubBackend` is bundled for tests and `SFMAPI_EPHEMERAL=true` demos.
 
+Reference backend packages use the same discovery contract:
+`/v1/capabilities` for portable features, `/v1/backend/actions` for
+backend-native tools, and `/v1/backend/config-schemas` for
+provider-specific `backend_options`.
+
+| Repo | Launcher | Purpose |
+|---|---|---|
+| `sfmapi_colmap_cli` | `sfmapi-colmap-cli-api` | Original COLMAP CLI backend |
+| `sfmapi_pycolmap` | `sfmapi-pycolmap-api` | PyCOLMAP backend with COLMAP CLI fallback |
+| `sfmapi_colmap` | `sfmapi-colmap-api` | Native COLMAP/PyCOLMAP/C++ demo backend |
+| `sfmapi_realityscan` | `sfmapi-realityscan-api` | RealityCapture/RealityScan CLI action backend |
+
 See [docs/](https://sfmapi.github.io/) for the user-facing site,
 [SFMAPI-SPEC.md](./SFMAPI-SPEC.md) for the wire spec, and
 [CLAUDE.md](./CLAUDE.md) for in-repo conventions.

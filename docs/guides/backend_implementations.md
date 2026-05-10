@@ -85,6 +85,24 @@ from .backend import MyBackend
 register_backend("my_backend", MyBackend)
 ```
 
+## Reference backend packages
+
+The maintained demo backends follow the same API discovery contract:
+portable features in `GET /v1/capabilities`, backend-native commands
+in `GET /v1/backend/actions`, and provider-specific stage options in
+`GET /v1/backend/config-schemas`.
+
+| Repo | Launcher | Backend family |
+|---|---|---|
+| `sfmapi_colmap_cli` | `sfmapi-colmap-cli-api` | Original COLMAP CLI |
+| `sfmapi_pycolmap` | `sfmapi-pycolmap-api` | PyCOLMAP with COLMAP CLI fallback |
+| `sfmapi_colmap` | `sfmapi-colmap-api` | Native COLMAP, PyCOLMAP, and C++ demos |
+| `sfmapi_realityscan` | `sfmapi-realityscan-api` | RealityCapture/RealityScan CLI actions |
+
+These packages use distinct Python import packages so agents and
+tools can install or inspect more than one backend in the same
+environment without module-name collisions.
+
 ## Capability strings
 
 The capability vocabulary is canonical and stable. Backends advertise
