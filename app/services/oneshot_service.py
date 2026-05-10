@@ -11,8 +11,14 @@ import time
 from pathlib import Path
 from typing import Any
 
+from app.adapters.backend import require_backend_method
 from app.adapters.registry import get_backend
-from app.core.errors import NotFoundError, PycolmapUnavailableError, ValidationError
+from app.core.errors import (
+    CapabilityUnavailableError,
+    NotFoundError,
+    PycolmapUnavailableError,
+    ValidationError,
+)
 from app.schemas.api.oneshot import (
     OneShotFeaturesPayload,
     OneShotFeaturesResponse,
@@ -89,12 +95,19 @@ def extract_features_oneshot(
         # tempdir database. Per-call cost is the database create +
         # extract; both are dominated by the SIFT GPU work.
         try:
-            summary = backend.extract_features(
+            extract_features = require_backend_method(
+                backend,
+                "extract_features",
+                capability="features.extract",
+            )
+            summary = extract_features(
                 database_path=db_path,
                 image_root=image_root,
                 image_list=[image_file.name],
                 options={"sift": _sift_options_from_spec(spec)},
             )
+        except CapabilityUnavailableError:
+            raise
         except PycolmapUnavailableError:
             raise
         except Exception as e:
@@ -195,15 +208,22 @@ def _read_back_keypoints(db_path: Path, image_name: str) -> tuple[list[list[floa
 
     The oneshot path writes one image into ``db_path``; image_id is 1.
     Heavy-import isolation: this routes through the
-    :class:`SfmBackend.read_keypoints` Protocol method so service
+    :class:`ObservationBackend.read_keypoints` Protocol method so service
     code never touches an engine library directly.
     """
     backend = get_backend()
     try:
-        keypoints, descriptors_bytes, descriptor_dim = backend.read_keypoints(
+        read_keypoints = require_backend_method(
+            backend,
+            "read_keypoints",
+            capability="features.extract",
+        )
+        keypoints, descriptors_bytes, descriptor_dim = read_keypoints(
             database_path=db_path,
             image_id=1,
         )
+    except CapabilityUnavailableError:
+        raise
     except PycolmapUnavailableError:
         raise
     descriptors_b64 = (
@@ -261,11 +281,18 @@ def localize_oneshot(
         query_path.write_bytes(image_bytes)
 
         try:
-            result_dict = backend.localize_from_memory(
+            localize_from_memory = require_backend_method(
+                backend,
+                "localize_from_memory",
+                capability="localize.from_memory",
+            )
+            result_dict = localize_from_memory(
                 sparse_dir=sparse_dir,
                 query_image=query_path,
                 spec={"sift": _sift_options_from_spec(spec)},
             )
+        except CapabilityUnavailableError:
+            raise
         except PycolmapUnavailableError:
             raise
         except Exception as e:

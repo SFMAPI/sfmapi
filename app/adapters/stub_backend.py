@@ -1,4 +1,4 @@
-"""Stub :class:`SfmBackend` used by tests + ephemeral mode.
+"""Stub full backend used by tests + ephemeral mode.
 
 sfmapi ships no real SfM engine; the wire surface and orchestration
 shell live in this repo, while engine implementations (pycolmap,
@@ -28,7 +28,7 @@ from app.core.errors import CapabilityUnavailableError
 
 
 class StubBackend:
-    """Minimal stub satisfying SfmBackend by structural typing."""
+    """No-op stub satisfying the full ``SfmBackend`` union."""
 
     name = "stub"
     version = "0.0.1"

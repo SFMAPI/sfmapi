@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.adapters.backend import require_backend_method
 from app.adapters.registry import get_backend
 from app.core.capabilities import require as require_capability
 from app.db.models import Task
@@ -27,7 +28,12 @@ def run(task: Task) -> dict:
     mode = (spec.get("mode") or "standard").lower()
     if mode == "two_stage":
         require_capability("ba.two_stage")
-    return get_backend().bundle_adjustment(
+    bundle_adjustment = require_backend_method(
+        get_backend(),
+        "bundle_adjustment",
+        capability="ba.two_stage" if mode == "two_stage" else "ba.standard",
+    )
+    return bundle_adjustment(
         model_path=Path(inputs["model_path"]),
         output_path=Path(inputs["output_path"]),
         spec=stage_options(spec),

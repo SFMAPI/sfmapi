@@ -7,7 +7,7 @@ separate repositories. To run a real workload, install one such
 implementation and register it.
 
 Worker code never imports a specific backend module — it calls
-:func:`get_backend` and uses the returned :class:`SfmBackend`. Which
+:func:`get_backend` and uses the returned backend object. Which
 backend is returned is controlled by the ``SFMAPI_BACKEND``
 environment variable (or the explicit ``name`` arg).
 
@@ -19,7 +19,7 @@ Adding a backend (separate package or app-startup hook):
 
     class MyBackend:
         name = "my_backend"
-        ...  # implement SfmBackend
+        ...  # implement Backend and any optional stage/action surfaces
 
     register_backend("my_backend", MyBackend)
 
@@ -34,13 +34,13 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.adapters.backend import SfmBackend
+    from app.adapters.backend import Backend
 
 
-_REGISTRY: dict[str, Callable[[], SfmBackend]] = {}
+_REGISTRY: dict[str, Callable[[], Backend]] = {}
 
 
-def register_backend(name: str, factory: Callable[[], SfmBackend]) -> None:
+def register_backend(name: str, factory: Callable[[], Backend]) -> None:
     """Register a backend factory. Re-registering an existing name
     overwrites it (useful for tests)."""
     _REGISTRY[name] = factory
@@ -50,7 +50,7 @@ def list_backends() -> list[str]:
     return sorted(_REGISTRY)
 
 
-def get_backend(name: str | None = None) -> SfmBackend:
+def get_backend(name: str | None = None) -> Backend:
     """Resolve and instantiate the configured backend.
 
     ``name`` overrides the env var when set (mostly for tests).
@@ -62,12 +62,12 @@ def get_backend(name: str | None = None) -> SfmBackend:
     chosen = name or os.environ.get("SFMAPI_BACKEND")
     if not chosen:
         raise KeyError(
-            "no SfmBackend selected: set SFMAPI_BACKEND or pass `name=` "
+            "no sfmapi backend selected: set SFMAPI_BACKEND or pass `name=` "
             f"explicitly. Registered backends: {list_backends()}"
         )
     if chosen not in _REGISTRY:
         raise KeyError(
-            f"unknown SfmBackend {chosen!r}; registered: {list_backends()}. "
+            f"unknown sfmapi backend {chosen!r}; registered: {list_backends()}. "
             "Install + register a backend implementation in app startup."
         )
     return _REGISTRY[chosen]()

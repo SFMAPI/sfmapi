@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.adapters.backend import require_backend_method
 from app.adapters.registry import get_backend
 from app.core.errors import ValidationError
 from app.db.models import Task
@@ -28,7 +29,12 @@ def run(task: Task) -> dict:
     out_dir = target_root / "_merged" / task.task_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    summary = get_backend().merge_reconstructions(
+    merge_reconstructions = require_backend_method(
+        get_backend(),
+        "merge_reconstructions",
+        capability="recon.merge",
+    )
+    summary = merge_reconstructions(
         model_paths=source_sparse_dirs,
         output_path=out_dir,
         sim3_aligners=sim3_aligners,

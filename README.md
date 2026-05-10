@@ -7,8 +7,9 @@ content-addressed storage, multi-tenant from day 1.
 
 This repository ships the **wire spec + orchestration shell only** —
 no concrete SfM engine. Backend implementations live in their own
-repositories, satisfy `app.adapters.backend.SfmBackend`, and register
-at startup via `register_backend("name", Backend)`. A no-op
+repositories, satisfy the smallest applicable protocol in
+`app.adapters.backend`, and register at startup via
+`register_backend("name", Backend)`. A no-op
 `StubBackend` is bundled for tests and `SFMAPI_EPHEMERAL=true` demos.
 
 Reference backend packages use the same discovery contract:
@@ -22,6 +23,8 @@ provider-specific `backend_options`.
 | `sfmapi_pycolmap` | `sfmapi-pycolmap-api` | PyCOLMAP backend with COLMAP CLI fallback |
 | `sfmapi_colmap` | `sfmapi-colmap-api` | Native COLMAP/PyCOLMAP/C++ demo backend |
 | `sfmapi_realityscan` | `sfmapi-realityscan-api` | RealityCapture/RealityScan CLI action backend |
+| `sfmapi_instantsfm` | `sfmapi-instantsfm-api` | InstantSfM Python action backend |
+| `sfmapi_spheresfm` | `sfmapi-spheresfm-api` | SphereSfM spherical action backend |
 
 See [docs/](https://sfmapi.github.io/) for the user-facing site,
 [SFMAPI-SPEC.md](./SFMAPI-SPEC.md) for the wire spec, and
@@ -115,7 +118,7 @@ app/
   orchestrator/  in-house Job→Task DAG, lease/janitor, cache lookup
   services/      tenant-scoped CRUD, transactions, DAG construction
   workers/       supervisor + per-task ARQ jobs (subprocess fork)
-  adapters/      backend Protocol (backend.py), registry, and the
+  adapters/      backend Protocols (backend.py), registry, and the
                  no-op stub. Real engine adapters live in separate repos.
 tests/
   unit/          fast, no IO

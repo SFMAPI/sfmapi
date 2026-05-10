@@ -4,9 +4,30 @@ sfmapi ships **no concrete SfM engine**. Real reconstructions happen
 in a backend package you (or someone else) ships separately. This
 page is the contract.
 
-## The Protocol
+## Backend levels
 
-Backends satisfy [`app.adapters.backend.SfmBackend`][prot] by
+Backends use structural typing: no inheritance, no metaclass, just the
+methods they actually support. The minimum contract is
+[`app.adapters.backend.Backend`][prot]: `name`, `version`, `vendor`,
+`capabilities()`, and `runtime_versions()`.
+
+Use the smallest level that fits:
+
+| Level | Implement | Best for |
+|---|---|---|
+| Native actions | `Backend` plus `list_backend_actions()`, `validate_backend_action()`, `run_backend_action()` | vendor CLIs, research repos, workflows that do not expose portable stage artifacts |
+| Artifact/stage backend | `Backend` plus one or more stage protocols such as `FeatureBackend`, `MappingBackend`, or `ExportBackend` | tools that can consume/produce sfmapi-compatible databases, models, or snapshots |
+| Full SfM backend | `SfmBackend` | engines that support the full portable feature/match/map/refine/export surface |
+
+Workers guard optional stage methods with
+`require_backend_method(...)`. If an action-only backend receives a
+portable stage request it does not implement, sfmapi returns the
+normal `501 CapabilityUnavailableError` instead of an internal
+`AttributeError`.
+
+## Portable stage backend
+
+Full portable backends can satisfy [`app.adapters.backend.SfmBackend`][prot] by
 structural typing — no inheritance required, no metaclass. A backend
 is any class with the right method names, signatures, and an
 identity triple (`name`, `version`, `vendor`).
@@ -14,8 +35,7 @@ identity triple (`name`, `version`, `vendor`).
 [prot]: ../server/adapters.md
 
 ```python
-from app.adapters.backend import ProgressReporter, SfmBackend
-from app.core.errors import CapabilityUnavailableError
+from app.adapters.backend import ProgressReporter
 
 class MyBackend:
     name = "my_backend"
@@ -48,17 +68,54 @@ class MyBackend:
     def bundle_adjustment(self, **kw) -> dict:
         ...
 
-    # Methods you don't support: raise CapabilityUnavailableError.
-    def dense_pipeline(self, **_) -> dict:
-        raise CapabilityUnavailableError(capability="dense.patch_match_stereo")
-
-    # ...etc; see the SfmBackend Protocol for the full list.
-
     def runtime_versions(self) -> dict[str, str]:
         # Returned by /v1/version under backend.runtime_versions.
         # Roll any sha / version / arch into here that should
         # invalidate the cache when it changes.
         return {"engine_sha": "abc123", "cuda_arch": "120"}
+```
+
+Only implement a stage method after the corresponding capability is
+real. For example, advertise `features.extract.sift` only when
+`extract_features(...)` succeeds for valid inputs. Unsupported stage
+methods may be omitted entirely. If you choose to implement a method
+but reject some modes, raise `CapabilityUnavailableError`.
+
+## Action-only backend
+
+Action-only backends are first-class. They keep `capabilities()` empty
+unless they also implement portable stages, and publish backend-native
+tools through the action catalog:
+
+```python
+class VendorCliBackend:
+    name = "vendor_cli"
+    version = "0.1.0"
+    vendor = "Vendor"
+
+    def capabilities(self) -> set[str]:
+        return set()
+
+    def runtime_versions(self) -> dict[str, str]:
+        return {"vendor_cli": "2026.1"}
+
+    def list_backend_actions(self, *, include_schemas: bool = False) -> list[dict]:
+        schema = {"type": "object", "additionalProperties": False}
+        return [{
+            "action_id": "vendor_cli.reconstruct",
+            "display_name": "Vendor reconstruct",
+            "category": "reconstruction",
+            "stability": "backend_extension",
+            "side_effects": "write",
+            "required_capabilities": [],
+            "input_schema": schema if include_schemas else None,
+        }]
+
+    def validate_backend_action(self, action_id: str, inputs: dict) -> dict:
+        return {"action_id": action_id, "valid": True, "errors": [], "normalized_inputs": inputs}
+
+    def run_backend_action(self, action_id: str, inputs: dict, *, workspace=None, progress=None) -> dict:
+        ...
 ```
 
 ## Registering at startup
@@ -98,6 +155,8 @@ in `GET /v1/backend/actions`, and provider-specific stage options in
 | `sfmapi_pycolmap` | `sfmapi-pycolmap-api` | PyCOLMAP with COLMAP CLI fallback |
 | `sfmapi_colmap` | `sfmapi-colmap-api` | Native COLMAP, PyCOLMAP, and C++ demos |
 | `sfmapi_realityscan` | `sfmapi-realityscan-api` | RealityCapture/RealityScan CLI actions |
+| `sfmapi_instantsfm` | `sfmapi-instantsfm-api` | InstantSfM Python actions |
+| `sfmapi_spheresfm` | `sfmapi-spheresfm-api` | SphereSfM/COLMAP-derived spherical actions |
 
 These packages use distinct Python import packages so agents and
 tools can install or inspect more than one backend in the same
@@ -128,10 +187,10 @@ Common categories:
 | Dense | `dense.patch_match_stereo`, `dense.fusion`, `mesh.{poisson, delaunay}` |
 | Other | `relocalize.images`, `pgo.optimize`, `triangulate.retri`, `export.{ply, nvm, txt, bin}`, `spherical.{to_cubemap, render_cubemap}` |
 
-If you advertise a capability, the corresponding method must succeed
-when called. If you don't, the method must `raise
-CapabilityUnavailableError(capability=...)` so clients see a clean
-501 + the capability name in the problem detail.
+If you advertise a capability, the corresponding portable stage method
+must succeed when called. If a backend does not implement that stage,
+omit both the capability and the method. sfmapi converts accidental
+portable-stage calls into a clean 501 with the capability name.
 
 `FeaturesSpec`, `PairsSpec`, and `MatcherSpec` each have an optional
 `provider` field. Use it only to disambiguate implementations that
@@ -286,7 +345,7 @@ The run endpoint returns the same `202 JobAcceptedResponse` envelope
 as every other job-submitting endpoint.
 
 Implement these optional methods when your backend exposes native
-tools:
+tools. These methods are enough for an action-only backend:
 
 ```python
 class MyBackend:

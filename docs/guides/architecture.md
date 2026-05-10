@@ -4,8 +4,9 @@ sfmapi separates a thin always-on **web tier** from one or more
 **workers** that drive a registered SfM backend. The web tier never
 imports an engine library (pycolmap, torch, segment_anything, ...) —
 those live in backend packages outside this repo, accessed only
-through the `SfmBackend` Protocol behind the `app/adapters/`
-boundary.
+through the backend protocols behind the `app/adapters/` boundary.
+Backends may implement a smaller protocol layer when they only expose
+native actions or a subset of portable stages.
 
 State lives in three durable stores: a SQL DB (SQLite or Postgres),
 a content-addressed blob store, and a sealed-snapshot directory
@@ -25,7 +26,7 @@ flowchart LR
     end
 
     subgraph WorkerPkg["Backend package"]
-        Backend["SfmBackend implementation"]
+        Backend["Backend / SfmBackend implementation"]
         Engine["SfM engine"]
         Backend --> Engine
     end
@@ -69,7 +70,7 @@ flowchart LR
 | `app/services/` | `app.db`, `app.storage`, `app.orchestrator` | tenant-scoped CRUD, transactions, DAG construction |
 | `app/orchestrator/` | `app.db`, `app.workers.runner` | DAG, lease, scheduler, recipes, resume |
 | `app/workers/` | `app.adapters` only | per-task lease + heartbeat; calls backend through the registry |
-| `app/adapters/` | `SfmBackend` Protocol + registry only | no engine imports — engines ship in their own package |
+| `app/adapters/` | backend Protocols + registry only | no engine imports — engines ship in their own package |
 
 A test (`tests/unit/test_app_starts.py`) enforces that importing
 `app.main` does not pull in any engine library (pycolmap, torch,

@@ -1,4 +1,4 @@
-"""SfmBackend protocol contract tests.
+"""Backend protocol contract tests.
 
 sfmapi ships no concrete backend — these tests verify the protocol
 contract, the registry semantics (no implicit default, structural
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from app.adapters.backend import SfmBackend
+from app.adapters.backend import Backend, SfmBackend, require_backend_method
 from app.adapters.registry import (
     _REGISTRY,
     get_backend,
@@ -26,6 +26,28 @@ from app.core.errors import CapabilityUnavailableError
 pytestmark = pytest.mark.unit
 
 
+class ActionOnlyBackend:
+    name = "action_only"
+    version = "1"
+    vendor = "tests"
+
+    def capabilities(self) -> set[str]:
+        return set()
+
+    def runtime_versions(self) -> dict[str, str]:
+        return {"action_only": "1"}
+
+    def list_backend_actions(self) -> list[dict]:
+        return [
+            {
+                "action_id": "action_only.inspect",
+                "display_name": "Inspect",
+                "stability": "backend_extension",
+                "side_effects": "read",
+            }
+        ]
+
+
 def test_no_default_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     """sfmapi ships nothing; resolving without an env var or
     explicit name raises a clear error."""
@@ -33,7 +55,7 @@ def test_no_default_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     _REGISTRY.clear()
     monkeypatch.delenv("SFMAPI_BACKEND", raising=False)
     try:
-        with pytest.raises(KeyError, match="no SfmBackend selected"):
+        with pytest.raises(KeyError, match="no sfmapi backend selected"):
             get_backend()
     finally:
         _REGISTRY.clear()
@@ -41,8 +63,20 @@ def test_no_default_backend(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_unknown_backend_name_raises() -> None:
-    with pytest.raises(KeyError, match="unknown SfmBackend"):
+    with pytest.raises(KeyError, match="unknown sfmapi backend"):
         get_backend("not.a.real.backend")
+
+
+def test_minimal_action_backend_satisfies_base_protocol_only() -> None:
+    backend = ActionOnlyBackend()
+
+    assert isinstance(backend, Backend)
+    assert not isinstance(backend, SfmBackend)
+    with pytest.raises(CapabilityUnavailableError) as exc:
+        require_backend_method(backend, "extract_features", capability="features.extract")
+    assert exc.value.status_code == 501
+    assert exc.value.extras["capability"] == "features.extract"
+    assert "does not implement extract_features" in exc.value.detail
 
 
 def test_stub_satisfies_sfmbackend_structurally() -> None:

@@ -17,6 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from app.adapters.backend import require_backend_method
 from app.adapters.progress import call_with_optional_progress
 from app.adapters.registry import get_backend
 from app.core.config import get_settings
@@ -80,8 +81,14 @@ def run(task: Task) -> dict[str, Any]:
         options["input_artifacts"] = inputs["input_artifacts"]
     if progress is not None:
         progress.phase_started(phase)
+    backend = get_backend()
+    run_mapping = require_backend_method(
+        backend,
+        "run_mapping",
+        capability=f"map.{kind}",
+    )
     summaries, recs = call_with_optional_progress(
-        get_backend().run_mapping,
+        run_mapping,
         progress=progress,
         kind=kind,
         db_path=db_path,

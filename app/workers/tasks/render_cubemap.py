@@ -14,6 +14,7 @@ import contextlib
 import shutil
 from pathlib import Path
 
+from app.adapters.backend import require_backend_method
 from app.adapters.registry import get_backend
 from app.core.config import get_settings
 from app.core.paths import Paths
@@ -37,7 +38,12 @@ def run(task: Task) -> dict:
     output_path = dataset_dir / "_cubemap" / task.task_id
     output_path.mkdir(parents=True, exist_ok=True)
 
-    get_backend().render_spherical_cubemap_images(
+    render_spherical_cubemap_images = require_backend_method(
+        get_backend(),
+        "render_spherical_cubemap_images",
+        capability="spherical.render_cubemap",
+    )
+    render_spherical_cubemap_images(
         input_image_path=image_path,
         output_path=output_path,
         face_size=face_size,

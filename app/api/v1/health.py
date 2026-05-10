@@ -80,13 +80,13 @@ async def version() -> VersionResponse:
     typical fields include engine commit shas, CUDA arch, and
     auxiliary library versions that influence the cache-key salt.
     """
-    from app.adapters.backend import SfmBackend
+    from app.adapters.backend import Backend
     from app.adapters.registry import get_backend
     from app.schemas.api.common import BackendVersion
 
     backend_info: BackendVersion | None = None
     try:
-        backend: SfmBackend = get_backend()
+        backend: Backend = get_backend()
     except KeyError:
         backend = None  # type: ignore[assignment]
     if backend is not None:

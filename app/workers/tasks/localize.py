@@ -14,6 +14,7 @@ import os
 import shutil
 from pathlib import Path
 
+from app.adapters.backend import require_backend_method
 from app.adapters.registry import get_backend
 from app.core.config import get_settings
 from app.core.errors import ValidationError
@@ -60,9 +61,12 @@ def run(task: Task) -> dict:
     stage = paths.workspace_root / "_localize_stage" / task.task_id
     img_path = _materialize_query(blob_sha, query_path, stage)
     try:
-        return get_backend().localize_from_memory(
-            sparse_dir=sparse_dir, query_image=img_path, spec=spec
+        localize_from_memory = require_backend_method(
+            get_backend(),
+            "localize_from_memory",
+            capability="localize.from_memory",
         )
+        return localize_from_memory(sparse_dir=sparse_dir, query_image=img_path, spec=spec)
     finally:
         with contextlib.suppress(OSError):
             shutil.rmtree(stage)

@@ -12,6 +12,7 @@ import contextlib
 from pathlib import Path
 from typing import Any
 
+from app.adapters.backend import require_backend_method
 from app.adapters.progress import call_with_optional_progress
 from app.adapters.registry import get_backend
 from app.core.config import get_settings
@@ -119,11 +120,16 @@ def run(task: Task) -> dict[str, Any]:
     input_artifacts = inputs.get("input_artifacts") or {}
     strategy = pairs.get("strategy", "exhaustive")
     backend = get_backend()
+    match = require_backend_method(
+        backend,
+        "match",
+        capability=f"pairs.{strategy}",
+    )
     progress = get_progress_reporter()
     if progress is not None:
         progress.phase_started("matching")
     summary = call_with_optional_progress(
-        backend.match,
+        match,
         progress=progress,
         database_path=db_path,
         mode=strategy,
@@ -137,8 +143,13 @@ def run(task: Task) -> dict[str, Any]:
     # reconstruction-level read endpoint has fresh data. Failure here
     # doesn't fail match — geometric verification is what matters.
     with contextlib.suppress(Exception):
+        iter_correspondences = require_backend_method(
+            backend,
+            "iter_correspondences",
+            capability="observations.by_point",
+        )
         written = export_correspondence_graph(
-            backend.iter_correspondences(database_path=db_path), db_path.parent
+            iter_correspondences(database_path=db_path), db_path.parent
         )
         out["correspondence_graph_path"] = str(written)
     return out

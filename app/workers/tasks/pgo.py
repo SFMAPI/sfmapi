@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.adapters.backend import require_backend_method
 from app.adapters.registry import get_backend
 from app.db.models import Task
 from app.storage.pose_graph_emit import emit_pose_graph_file
@@ -16,7 +17,18 @@ def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     out_path = Path(inputs["output_path"])
     backend = get_backend()
-    result = backend.pose_graph_optimize(
+    pose_graph_optimize = require_backend_method(
+        backend,
+        "pose_graph_optimize",
+        capability="pgo.optimize",
+    )
+    read_reconstruction = require_backend_method(
+        backend,
+        "read_reconstruction",
+        capability="pgo.optimize",
+        reason="Pose-graph optimization needs read_reconstruction() to emit the sidecar.",
+    )
+    result = pose_graph_optimize(
         model_path=Path(inputs["model_path"]),
         output_path=out_path,
         spec=spec,
@@ -25,6 +37,6 @@ def run(task: Task) -> dict:
     # something a backend's optimize() call needs to know about. Read
     # the freshly-written model back through the backend so the emitter
     # gets a duck-typed reconstruction it can walk.
-    rec = backend.read_reconstruction(out_path)
+    rec = read_reconstruction(out_path)
     emit_pose_graph_file(rec, out_path)
     return result

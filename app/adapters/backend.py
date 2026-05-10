@@ -1,83 +1,79 @@
-"""``SfmBackend`` — the contract every backend implementation honors.
+"""Backend contracts for sfmapi engine integrations.
 
-sfmapi is a wire standard with multiple possible engines. This module
-declares the **single Python-side contract** that worker tasks call
-through. Workers **MUST NOT** import an engine library
-(``pycolmap``, ``openmvg``, ...) directly — they call
-``get_backend()`` and use the returned backend's methods.
+sfmapi is a wire standard with multiple possible engines. The web tier
+and workers never import engine libraries directly. They resolve the
+configured backend with :func:`app.adapters.registry.get_backend` and
+call optional protocol surfaces exposed by that object.
 
-A new backend is added by:
+Backends can implement only the layer they actually support:
 
-1. Implementing this :class:`SfmBackend` protocol (any subset of
-   methods; unsupported operations **MUST** raise
-   :class:`app.core.errors.CapabilityUnavailableError`).
-2. Registering a factory under a canonical short name via
-   :func:`app.adapters.registry.register_backend`.
-3. Implementing :meth:`SfmBackend.capabilities` so it returns the set
-   of canonical capability names the backend exposes (subset of
-   :data:`app.core.capabilities.ALL_KNOWN`).
-4. Optionally implementing the backend action provider methods
-   documented in :mod:`app.adapters.backend_actions` to expose
-   backend-native tools such as COLMAP CLI commands without adding
-   each vendor-specific operation to the portable capability registry.
-5. Optionally implementing ``list_backend_config_schemas()`` as
-   documented in :mod:`app.adapters.backend_config` to describe valid
-   ``backend_options`` keys for each portable stage/capability.
+- :class:`Backend` is the minimum identity/capability/runtime contract.
+- :class:`BackendActionProvider` and :class:`BackendConfigSchemaProvider`
+  live in sibling modules and are optional discovery surfaces.
+- Stage protocols such as :class:`FeatureBackend` and
+  :class:`MappingBackend` are implemented only by backends that support
+  portable sfmapi stages.
+- :class:`SfmBackend` remains as the full legacy/progressive protocol
+  for complete in-process or artifact-compatible SfM engines.
 
-No reference backend ships in this repository — sfmapi is the wire
-contract + orchestration shell, and engine-specific implementations
-(pycolmap, OpenSfM, hloc, custom forks) live in separate packages.
-Adding a new backend is purely additive — no protocol method gets
-renamed when a new engine joins.
+This split lets CLI/vendor/research backends expose native actions
+without dozens of placeholder stage methods. When a portable worker
+needs a stage method, it must call :func:`require_backend_method`; a
+backend that lacks the method then returns the normal
+``CapabilityUnavailableError``/501 shape instead of an ``AttributeError``.
 
-Method return shapes are documented as plain dicts; clients that need
-strict typing should validate against the corresponding schema in
-:mod:`app.schemas.api.scene`. Returning extra fields is allowed —
-callers MUST tolerate them.
-
-Long-running methods MAY accept an additional keyword-only
+Long-running methods may accept an additional keyword-only
 ``progress: app.adapters.progress.ProgressReporter | None`` argument.
-Workers pass it only when a backend method advertises support for that
-keyword, so adding progress reporting is backwards compatible with
-older backend packages.
+Workers pass it only when the backend method advertises support for
+that keyword, so adding progress reporting is backwards compatible.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
 
 from app.adapters.progress import ProgressReporter
+from app.core.errors import CapabilityUnavailableError
 
 
 @runtime_checkable
-class SfmBackend(Protocol):
-    """Structural-typing contract for an SfM backend."""
-
-    # ---- identity --------------------------------------------------------
+class BackendIdentity(Protocol):
+    """Backend identity fields surfaced by `/v1/version` and discovery."""
 
     @property
     def name(self) -> str:
-        """Canonical short name (e.g. ``"colmap_mod"``)."""
+        """Canonical short name, e.g. ``"pycolmap"`` or ``"realityscan_cli"``."""
 
     @property
     def version(self) -> str:
-        """Backend version string (free form)."""
+        """Backend adapter version string."""
 
     @property
     def vendor(self) -> str:
-        """Optional human-readable vendor / origin."""
+        """Optional human-readable vendor or upstream project."""
+
+
+@runtime_checkable
+class Backend(BackendIdentity, Protocol):
+    """Minimum contract every registered backend must satisfy."""
 
     def capabilities(self) -> set[str]:
-        """Set of canonical capability names this backend exposes.
+        """Portable sfmapi capability names this backend implements.
 
-        Used by :func:`app.core.capabilities.detect_capabilities` to
-        flip OPTIONAL flags ``True``. Returning a name here means the
-        corresponding method on this backend will succeed when called
-        with valid inputs."""
+        This set must contain only names from
+        :data:`app.core.capabilities.ALL_KNOWN`. Backend-native tools
+        belong in the action catalog, not here.
+        """
 
-    # ---- feature pipeline ----------------------------------------------
+    def runtime_versions(self) -> dict[str, str]:
+        """Engine/dependency versions that influence cache identity."""
+
+
+@runtime_checkable
+class FeatureBackend(Backend, Protocol):
+    """Portable feature, pair-selection, matching, and verification stages."""
 
     def extract_features(
         self,
@@ -87,26 +83,18 @@ class SfmBackend(Protocol):
         image_list: list[str],
         options: dict,
     ) -> dict:
-        """Run feature extraction over ``image_list`` into the SfM
-        database. Returns ``{num_images, num_keypoints, ...}``."""
+        """Run feature extraction over ``image_list`` into the SfM database."""
 
     def match(self, *, database_path: Path, mode: str, options: dict) -> dict:
-        """Run feature matching.
-
-        ``mode`` is the pair-selection strategy from ``PairsSpec``
-        (``exhaustive | sequential | spatial | vocabtree | retrieval |
-        from_poses | explicit``). ``options`` includes nested
-        ``pairs`` and ``matcher`` dictionaries plus legacy flat keys for
-        older backends. Explicit pair-list requests include
-        ``options["pairs"]["pairs_path"]`` / ``match_list_path`` once the
-        worker has materialized an uploaded or inline pair list.
-        Returns ``{num_matches, ...}``."""
+        """Run feature matching for the given pair-selection strategy."""
 
     def verify_matches(self, *, database_path: Path, options: dict) -> dict:
-        """Run geometric verification on existing matches. Returns
-        ``{num_verified_matches, ...}``."""
+        """Run geometric verification on existing matches."""
 
-    # ---- inspector helpers (for the export sidecars) -------------------
+
+@runtime_checkable
+class ObservationBackend(Backend, Protocol):
+    """Read observation sidecars from a backend feature/match store."""
 
     def read_keypoints(
         self,
@@ -114,34 +102,18 @@ class SfmBackend(Protocol):
         database_path: Path,
         image_id: int,
     ) -> tuple[list[list[float]], bytes, int]:
-        """Read keypoints + descriptors for one image out of the SfM
-        database. Returns
-        ``(keypoints, descriptors_bytes, descriptor_dim)`` where:
-
-        - ``keypoints`` is a list of ``[x, y, scale, angle]`` rows.
-        - ``descriptors_bytes`` is the row-major float32 descriptor
-          matrix as raw bytes (caller base64-encodes if it needs to
-          ship it on the wire).
-        - ``descriptor_dim`` is the number of columns in the
-          descriptor matrix (128 for SIFT).
-
-        Used by the oneshot streaming path (``POST /v1/oneshot/...``)
-        to read back what ``extract_features`` just wrote to the
-        per-request tempdb."""
+        """Read keypoints and descriptors for one image."""
 
     def iter_two_view_geometries(self, *, database_path: Path) -> Iterator[tuple[int, int, Any]]:
-        """Walk every image pair in the database that has a verified
-        two-view geometry. Yields ``(image_id1, image_id2, geometry)``
-        where ``geometry`` is a duck-typed object with ``F``/``E``/``H``
-        attributes (see :mod:`app.storage.two_view_emit`)."""
+        """Yield verified two-view geometry rows."""
 
     def iter_correspondences(self, *, database_path: Path) -> Iterator[tuple[int, int, Any]]:
-        """Walk every image pair with raw matches. Yields
-        ``(image_id1, image_id2, matches)`` where ``matches`` is
-        iterable over ``(kp_idx_1, kp_idx_2)`` pairs (see
-        :mod:`app.storage.correspondence_emit`)."""
+        """Yield raw match correspondences."""
 
-    # ---- mapping --------------------------------------------------------
+
+@runtime_checkable
+class MappingBackend(Backend, Protocol):
+    """Portable mapping stages."""
 
     def run_mapping(
         self,
@@ -154,20 +126,15 @@ class SfmBackend(Protocol):
         spec: dict,
         pose_priors: dict | None = None,
     ) -> tuple[list[dict], list[Any]]:
-        """Run the named mapping pipeline. ``kind`` is
-        ``incremental | global | hierarchical | spherical``. Returns
-        ``(summaries, reconstructions)`` — each summary is a dict
-        (``{idx, num_reg_images, num_points3D}``) and each
-        reconstruction is a duck-typed object the snapshot emitter
-        can consume (see :mod:`app.storage.snapshot_emit`)."""
+        """Run incremental/global/hierarchical/spherical mapping."""
 
-    # ---- refinement -----------------------------------------------------
+
+@runtime_checkable
+class RefinementBackend(Backend, Protocol):
+    """Portable refinement and model-edit stages."""
 
     def bundle_adjustment(self, *, model_path: Path, output_path: Path, spec: dict) -> dict:
-        """Run BA. ``spec.mode`` is ``standard`` (default) or
-        ``two_stage`` — the latter requires capability
-        ``ba.two_stage``. Returns
-        ``{model_path, mode, num_reg_images, num_points3D}``."""
+        """Run bundle adjustment."""
 
     def triangulate(
         self,
@@ -193,12 +160,18 @@ class SfmBackend(Protocol):
     def pose_graph_optimize(self, *, model_path: Path, output_path: Path, spec: dict) -> dict:
         """Run pose-graph optimization."""
 
-    # ---- output / conversion -------------------------------------------
+
+@runtime_checkable
+class ExportBackend(Backend, Protocol):
+    """Portable reconstruction export stages."""
 
     def export(self, *, model_path: Path, output_path: Path, format: str) -> dict:
-        """Export a sparse model. ``format`` is one of
-        ``ply | nvm | colmap_text | colmap_bin | nerfstudio |
-        gaussian_splatting | instant_ngp | kapture``."""
+        """Export a sparse model."""
+
+
+@runtime_checkable
+class SphericalBackend(Backend, Protocol):
+    """Spherical/panorama conversion helpers."""
 
     def convert_spherical_to_cubemap(
         self,
@@ -216,9 +189,12 @@ class SfmBackend(Protocol):
         output_path: Path,
         face_size: int | None = None,
     ) -> dict:
-        """Render every panorama into 6 face images."""
+        """Render every panorama into six cubemap face images."""
 
-    # ---- retrieval ------------------------------------------------------
+
+@runtime_checkable
+class RetrievalBackend(Backend, Protocol):
+    """Image retrieval and similarity helpers."""
 
     def build_vlad_index(
         self,
@@ -226,19 +202,28 @@ class SfmBackend(Protocol):
         image_paths_by_id: dict[str, Path],
         spec: dict,
     ) -> tuple[list[str], Any]:
-        """Compute VLAD descriptors for the given images. Returns
-        ``(image_ids, vectors)`` where ``vectors`` is a NumPy array of
-        shape ``(N, D)`` parallel to ``image_ids``. The caller persists
-        through :func:`app.storage.vlad.write_index`."""
+        """Compute VLAD descriptors for a set of images."""
 
-    # ---- localization ---------------------------------------------------
+
+@runtime_checkable
+class LocalizationBackend(Backend, Protocol):
+    """Single-image localization helpers."""
 
     def localize_from_memory(self, *, sparse_dir: Path, query_image: Path, spec: dict) -> dict:
-        """Localize a single query image against the sparse model.
-        Returns a :class:`app.schemas.api.scene.LocalizationResult`-
-        shaped dict."""
+        """Localize a query image against a sparse model."""
 
-    # ---- geometry transforms -------------------------------------------
+
+@runtime_checkable
+class BatchLocalizationBackend(Backend, Protocol):
+    """Batch or sequence localization helpers."""
+
+    def localize_batch(self, **kwargs: Any) -> list:
+        """Localize multiple query images."""
+
+
+@runtime_checkable
+class TransformBackend(Backend, Protocol):
+    """Geometry transform helpers."""
 
     def apply_sim3(
         self,
@@ -247,20 +232,101 @@ class SfmBackend(Protocol):
         output_path: Path,
         sim3: dict,
     ) -> dict:
-        """Apply a Sim(3) similarity transform to a sparse model and
-        write the result. ``sim3`` is the wire shape (rotation as
-        Hamilton ``wxyz``, translation 3-vec, scale float)."""
+        """Apply a Sim(3) similarity transform to a sparse model."""
 
-    # ---- low-level: load a sparse model into memory --------------------
+
+@runtime_checkable
+class ReconstructionReaderBackend(Backend, Protocol):
+    """Read a sparse model into a snapshot-emitter-compatible object."""
 
     def read_reconstruction(self, path: Path) -> Any:
-        """Return a duck-typed reconstruction object the snapshot
-        emitter (:mod:`app.storage.snapshot_emit`) can consume."""
-
-    # ---- runtime version vector ----------------------------------------
-
-    def runtime_versions(self) -> dict[str, str]:
-        """Return engine + dependency versions for the cache key."""
+        """Return a duck-typed reconstruction object."""
 
 
-__all__ = ["ProgressReporter", "SfmBackend"]
+@runtime_checkable
+class ReconstructionMergeBackend(Backend, Protocol):
+    """Multi-reconstruction merge helpers."""
+
+    def merge_reconstructions(
+        self,
+        *,
+        model_paths: list[Path],
+        output_path: Path,
+        sim3_aligners: Any = None,
+    ) -> dict:
+        """Merge multiple sparse models into one output model."""
+
+
+@runtime_checkable
+class SfmBackend(
+    FeatureBackend,
+    ObservationBackend,
+    MappingBackend,
+    RefinementBackend,
+    ExportBackend,
+    SphericalBackend,
+    RetrievalBackend,
+    LocalizationBackend,
+    BatchLocalizationBackend,
+    TransformBackend,
+    ReconstructionReaderBackend,
+    ReconstructionMergeBackend,
+    Protocol,
+):
+    """Full portable SfM backend protocol kept for complete engines.
+
+    New backend packages should usually target the smallest protocol
+    layer they actually implement and expose native tools through
+    backend actions where no portable stage contract exists.
+    """
+
+
+def has_backend_method(backend: object, method_name: str) -> bool:
+    """Return whether ``backend`` exposes a callable method."""
+
+    return callable(getattr(backend, method_name, None))
+
+
+def require_backend_method(
+    backend: object,
+    method_name: str,
+    *,
+    capability: str,
+    reason: str | None = None,
+) -> Callable[..., Any]:
+    """Return a backend method or raise a clean capability error.
+
+    This is the guard portable workers use before calling optional
+    protocol surfaces. It lets action-only or artifact-only backends
+    omit unsupported methods entirely while preserving sfmapi's normal
+    501 response semantics.
+    """
+
+    method = getattr(backend, method_name, None)
+    if callable(method):
+        return cast(Callable[..., Any], method)
+    backend_name = getattr(backend, "name", backend.__class__.__name__)
+    detail = reason or f"Backend {backend_name!r} does not implement {method_name}()."
+    raise CapabilityUnavailableError(capability=capability, reason=detail)
+
+
+__all__ = [
+    "Backend",
+    "BackendIdentity",
+    "BatchLocalizationBackend",
+    "ExportBackend",
+    "FeatureBackend",
+    "LocalizationBackend",
+    "MappingBackend",
+    "ObservationBackend",
+    "ProgressReporter",
+    "ReconstructionMergeBackend",
+    "ReconstructionReaderBackend",
+    "RefinementBackend",
+    "RetrievalBackend",
+    "SfmBackend",
+    "SphericalBackend",
+    "TransformBackend",
+    "has_backend_method",
+    "require_backend_method",
+]

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.adapters.backend import require_backend_method
 from app.adapters.registry import get_backend
 from app.core.errors import ValidationError
 from app.db.models import Task
@@ -32,12 +33,23 @@ def run(task: Task) -> dict:
     out_dir = rec_root / "_cubemap" / task.task_id
     out_dir.mkdir(parents=True, exist_ok=True)
     backend = get_backend()
-    backend.convert_spherical_to_cubemap(
+    convert_spherical_to_cubemap = require_backend_method(
+        backend,
+        "convert_spherical_to_cubemap",
+        capability="spherical.to_cubemap",
+    )
+    read_reconstruction = require_backend_method(
+        backend,
+        "read_reconstruction",
+        capability="spherical.to_cubemap",
+        reason="Cubemap conversion needs read_reconstruction() to seal a snapshot.",
+    )
+    convert_spherical_to_cubemap(
         input_model_path=sparse_dir,
         input_image_path=image_root,
         output_path=out_dir,
     )
-    rec = backend.read_reconstruction(out_dir)
+    rec = read_reconstruction(out_dir)
     emit_snapshot_files(rec, out_dir)
 
     snapshots = SnapshotStore(rec_root)

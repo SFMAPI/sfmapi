@@ -79,13 +79,19 @@ mechanically.
    the entry function:
 
    ```python
+   from app.adapters.backend import require_backend_method
    from app.workers.tasks._registry import task_handler
 
    @task_handler("my_stage")
    def run(task: Task) -> dict:
        inputs, spec = read_state(task)
        backend = get_backend()
-       result = backend.my_stage_method(...)
+       method = require_backend_method(
+           backend,
+           "my_stage_method",
+           capability="my_stage.canonical",
+       )
+       result = method(...)
        return {"result_path": ..., **result}
    ```
 
@@ -97,10 +103,11 @@ mechanically.
    `app/core/capabilities.py::ALL_KNOWN`. Pick a canonical name
    (`pgo.optimize`, `mesh.poisson`, `<family>.<variant>`).
 
-3. **Add a Protocol method** to `app.adapters.backend.SfmBackend` if
-   the stage needs a new backend-side operation. Add the matching
-   stub method to `app.adapters.stub_backend.StubBackend` (raises
-   `CapabilityUnavailableError(capability="<canonical>")`).
+3. **Add a Protocol method** to the smallest matching protocol in
+   `app.adapters.backend` if the stage needs a new backend-side
+   operation. Keep `SfmBackend` as the full union for complete engines.
+   Add the matching stub method to `app.adapters.stub_backend.StubBackend`
+   only when the no-op stub must satisfy that protocol.
 
 4. **Add a service helper** in `app/services/sfm_stage_service.py`:
 
@@ -142,11 +149,13 @@ mechanically.
 ## Adding a new backend or backend method
 
 sfmapi ships no concrete SfM backend; engine packages live in their
-own repos and satisfy ``app.adapters.backend.SfmBackend``.
+own repos and satisfy the smallest protocol layer they need.
 
-1. Implement the protocol in your backend package; raise
-   ``CapabilityUnavailableError`` for ops you don't support and
-   advertise the supported subset via ``capabilities()``.
+1. Implement `Backend` for identity, portable capabilities, and
+   runtime versions. Add optional stage protocols such as
+   `FeatureBackend` or `MappingBackend` only when those portable
+   stages really work. Action-only backends do not need placeholder
+   stage methods.
 2. Keep `capabilities()` portable. Backend-native commands such as
    `colmap.feature_extractor` or `openmvg.compute_features` belong in
    `list_backend_actions()`, not in `ALL_KNOWN`.
@@ -160,11 +169,12 @@ own repos and satisfy ``app.adapters.backend.SfmBackend``.
    `backend_options` schemas, and action/config ids leaked through
    `capabilities()`. For a package-level smoke check, run
    `sfmapi check-backend --import my_backend --backend my_backend`.
-5. If a new wire op is needed (a method not yet on the protocol),
-   add it here in `app/adapters/backend.py` and surface a worker
-   task under `app/workers/tasks/` (see "Adding a new SfM stage"
-   above). Worker tasks call backends only through
-   ``get_backend()``, never via direct import.
+5. If a new wire op is needed (a method not yet on a protocol), add
+   it to the narrowest protocol in `app/adapters/backend.py` and
+   surface a worker task under `app/workers/tasks/` (see "Adding a
+   new SfM stage" above). Worker tasks call backends through
+   ``get_backend()`` plus ``require_backend_method(...)``, never via
+   direct import.
 
 Backends advertising a capability that is not in
 `app.core.capabilities.ALL_KNOWN` will see that capability silently

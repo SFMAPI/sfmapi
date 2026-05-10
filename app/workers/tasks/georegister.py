@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.adapters.backend import require_backend_method
 from app.adapters.registry import get_backend
 from app.core.errors import ValidationError
 from app.db.models import Task
@@ -32,7 +33,12 @@ def run(task: Task) -> dict:
 
     out_dir = rec_root / "_georegister" / task.task_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    get_backend().apply_sim3(model_path=sparse_dir, output_path=out_dir, sim3=sim3_dict)
+    apply_sim3 = require_backend_method(
+        get_backend(),
+        "apply_sim3",
+        capability="georegister.sim3",
+    )
+    apply_sim3(model_path=sparse_dir, output_path=out_dir, sim3=sim3_dict)
 
     snapshots = SnapshotStore(rec_root)
     seq = (snapshots.latest() or 0) + 1

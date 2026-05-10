@@ -52,6 +52,8 @@ explicit decision-record update.
 
 | L33 | AIP-161 `update_mask` is supported on PATCH for projects and datasets while preserving the legacy implicit mask when omitted. Images now support canonical ID deletion via `DELETE /v1/images/{image_id}`; the label-addressed `DELETE /v1/datasets/{dataset_id}/images/{name}` path stays as a compatibility alias. | `app/api/v1/{projects,datasets,images}.py` + `app/api/v1/_helpers.py::masked_updates` + `SFMAPI-SPEC.md` sections 6.2/6.4/6.5 | Adds AIP-134/AIP-161 and AIP-122 affordances without breaking existing clients or recorded fixtures |
 
+| L34 | Backend integration is layered. The minimum registered backend satisfies `Backend` (`name`, `version`, `vendor`, `capabilities()`, `runtime_versions()`); action-only packages expose native tools through `/v1/backend/actions`; portable stage packages implement only the narrow protocol surfaces they support; `SfmBackend` remains the full union for complete engines. Workers call `require_backend_method(...)` before optional stage dispatch so missing methods return the normal 501 capability error. | `app/adapters/backend.py` + `app/workers/tasks/*.py` + `docs/guides/backend_implementations.md` | Lets vendor CLIs, Python research repos, C++ bindings, and full in-process engines share one discovery/job/progress shell without fake placeholder methods or 500s from `AttributeError` |
+
 ## Cancelled with rationale
 
 These were considered, evaluated, and rejected. The rationale lives

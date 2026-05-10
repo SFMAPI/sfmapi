@@ -48,9 +48,10 @@ client, all checked against the same wire fixtures.
 :::
 
 :::{grid-item-card} Build or operate
-Implement `SfmBackend`, advertise portable capabilities, expose
-backend-native actions and config schemas, deploy web/worker tiers,
-and configure storage and auth.
+Implement the smallest backend protocol that fits, advertise portable
+capabilities only for supported stages, expose backend-native actions
+and config schemas, deploy web/worker tiers, and configure storage and
+auth.
 
 - {doc}`Implement a backend <guides/backend_implementations>`
 - {doc}`Deployment <guides/deployment>`

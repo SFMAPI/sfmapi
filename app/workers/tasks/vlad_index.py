@@ -17,6 +17,7 @@ import contextlib
 import shutil
 from pathlib import Path
 
+from app.adapters.backend import require_backend_method
 from app.adapters.registry import get_backend
 from app.core.config import get_settings
 from app.core.errors import ValidationError
@@ -56,9 +57,12 @@ def run(task: Task) -> dict:
     if not image_paths_by_id:
         raise ValidationError("vlad_index: no images could be materialized for VLAD build")
 
-    sfmapi_ids, vectors = get_backend().build_vlad_index(
-        image_paths_by_id=image_paths_by_id, spec=spec
+    build_vlad_index = require_backend_method(
+        get_backend(),
+        "build_vlad_index",
+        capability="similarity.vlad",
     )
+    sfmapi_ids, vectors = build_vlad_index(image_paths_by_id=image_paths_by_id, spec=spec)
     if vectors.size == 0:
         raise ValidationError(
             "vlad_index: backend returned no descriptors (SIFT extraction failed for every image)"

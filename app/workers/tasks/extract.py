@@ -17,6 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from app.adapters.backend import require_backend_method
 from app.adapters.progress import call_with_optional_progress
 from app.adapters.registry import get_backend
 from app.core.config import get_settings
@@ -61,8 +62,14 @@ def run(task: Task) -> dict[str, Any]:
     options = _feature_options(spec)
     if inputs.get("input_artifacts"):
         options["input_artifacts"] = inputs["input_artifacts"]
+    backend = get_backend()
+    extract_features = require_backend_method(
+        backend,
+        "extract_features",
+        capability="features.extract",
+    )
     summary = call_with_optional_progress(
-        get_backend().extract_features,
+        extract_features,
         progress=progress,
         database_path=db_path,
         image_root=image_root,

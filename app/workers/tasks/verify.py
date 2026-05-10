@@ -6,6 +6,7 @@ import contextlib
 from pathlib import Path
 from typing import Any
 
+from app.adapters.backend import require_backend_method
 from app.adapters.progress import call_with_optional_progress
 from app.adapters.registry import get_backend
 from app.db.models import Task
@@ -24,11 +25,16 @@ def run(task: Task) -> dict[str, Any]:
     options = stage_options(spec)
     if inputs.get("input_artifacts"):
         options["input_artifacts"] = inputs["input_artifacts"]
+    verify_matches = require_backend_method(
+        backend,
+        "verify_matches",
+        capability="matches.verify",
+    )
     progress = get_progress_reporter()
     if progress is not None:
         progress.phase_started("geometric_verification")
     summary = call_with_optional_progress(
-        backend.verify_matches,
+        verify_matches,
         progress=progress,
         database_path=db_path,
         options=options,
@@ -40,8 +46,13 @@ def run(task: Task) -> dict[str, Any]:
     # next to the database. Best-effort: failure here doesn't fail verify.
     out: dict[str, Any] = {"database_path": str(db_path), **summary}
     with contextlib.suppress(Exception):
+        iter_two_view_geometries = require_backend_method(
+            backend,
+            "iter_two_view_geometries",
+            capability="observations.by_image",
+        )
         written = export_two_view_geometries(
-            backend.iter_two_view_geometries(database_path=db_path), db_path.parent
+            iter_two_view_geometries(database_path=db_path), db_path.parent
         )
         out["two_view_geometries_path"] = str(written)
     return out

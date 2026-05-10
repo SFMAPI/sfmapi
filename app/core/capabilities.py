@@ -206,7 +206,7 @@ def reset_capabilities_cache() -> None:
 def detect_capabilities() -> Capabilities:
     """Probe the current deployment and report what it can do.
 
-    Asks the active :class:`~app.adapters.backend.SfmBackend` for its
+    Asks the active :class:`~app.adapters.backend.Backend` for its
     canonical capability set, then layers on the small set of
     capabilities sfmapi provides itself (``similarity.dhash``,
     ``pose_priors.read_write``) regardless of the backend choice.
@@ -265,8 +265,7 @@ def detect_capabilities() -> Capabilities:
             name
             for name in unknown
             if not any(
-                name == action_id or name.startswith(f"{action_id}.")
-                for action_id in action_ids
+                name == action_id or name.startswith(f"{action_id}.") for action_id in action_ids
             )
         }
     if unknown:
