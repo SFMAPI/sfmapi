@@ -2,9 +2,9 @@
 
 Mirrors :class:`app.core.capabilities.Capabilities` exactly —
 declared here separately so FastAPI can advertise it in OpenAPI as
-the typed response. Hand-rolled SDKs keep their own parallel
-definitions in ``clients/<lang>/`` for the same reason (independent
-release cadence + zero server-side import).
+the typed response. SDK packages keep their own parallel definitions
+in the separate ``sfmapi-sdk`` repository for the same reason
+(independent release cadence + zero server-side import).
 """
 
 from __future__ import annotations

@@ -12,19 +12,26 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SFMAPI_SDK_REPO: ${{ github.workspace }}/.cache/sfmapi-sdk
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: SFMAPI/sfmapi-sdk
+          path: .cache/sfmapi-sdk
       - uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
       - name: Install
         run: |
           uv sync --extra dev
-          uv pip install -e clients/python
-          uv pip install -e clients/python/sfmapi_client_gen
+          uv pip install -e "$SFMAPI_SDK_REPO/python"
+          uv pip install -e "$SFMAPI_SDK_REPO/python/sfmapi_client_gen"
       - name: Ruff lint
         run: uv run ruff check app tests
       - name: Ruff format check
@@ -38,12 +45,16 @@ jobs:
       SFMAPI_PYCOLMAP_AVAILABLE: "false"
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: SFMAPI/sfmapi-sdk
+          path: .cache/sfmapi-sdk
       - uses: astral-sh/setup-uv@v7
       - name: Install
         run: |
           uv sync --extra dev
-          uv pip install -e clients/python
-          uv pip install -e clients/python/sfmapi_client_gen
+          uv pip install -e "$SFMAPI_SDK_REPO/python"
+          uv pip install -e "$SFMAPI_SDK_REPO/python/sfmapi_client_gen"
       - name: Test (SQLite)
         run: uv run pytest -q -m "not needs_pycolmap and not needs_postgres"
 
@@ -69,12 +80,16 @@ jobs:
       SFMAPI_PYCOLMAP_AVAILABLE: "false"
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: SFMAPI/sfmapi-sdk
+          path: .cache/sfmapi-sdk
       - uses: astral-sh/setup-uv@v7
       - name: Install
         run: |
           uv sync --extra dev
-          uv pip install -e clients/python
-          uv pip install -e clients/python/sfmapi_client_gen
+          uv pip install -e "$SFMAPI_SDK_REPO/python"
+          uv pip install -e "$SFMAPI_SDK_REPO/python/sfmapi_client_gen"
       - name: Wait for postgres
         run: |
           for i in {1..30}; do

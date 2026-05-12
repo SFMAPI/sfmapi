@@ -29,7 +29,7 @@ All errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807)
 ## Server-Side Hierarchy
 
 ```{eval-rst}
-.. automodule:: app.core.errors
+.. automodule:: sfmapi.errors
    :members:
    :no-index:
 ```

@@ -78,7 +78,7 @@ On PowerShell:
 
 ```powershell
 $env:SFMAPI_MCP_MODE = "local"
-uv run uvicorn app.main:app --reload
+uv run uvicorn sfmapi.runtime:create_app --factory --reload
 ```
 
 The MCP endpoint is mounted at `/mcp` by default. The local HTML status

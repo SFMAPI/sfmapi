@@ -6,7 +6,8 @@ on:
     paths:
       - "docs/**"
       - "app/**"
-      - "clients/python/**"
+      - "sfmapi/**"
+      - "sfm_hub/**"
       - ".readthedocs.yaml"
       - ".github/workflows/docs.yml"
   pull_request:
@@ -23,18 +24,26 @@ concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SFMAPI_SDK_REPO: ${{ github.workspace }}/.cache/sfmapi-sdk
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: SFMAPI/sfmapi-sdk
+          path: .cache/sfmapi-sdk
       - uses: astral-sh/setup-uv@v7
       - name: Install
         run: |
           uv venv
           uv pip install -e .
-          uv pip install -e clients/python
+          uv pip install -e "$SFMAPI_SDK_REPO/python"
+          uv pip install -e "$SFMAPI_SDK_REPO/python/sfmapi_client_gen"
           uv pip install -r docs/requirements.txt
       - name: Sphinx build (warning -> error)
         run: |

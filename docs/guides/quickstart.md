@@ -41,7 +41,7 @@ uv pip install -e ".[image-processing]"
 ## 2. Start the server
 
 ```bash
-uv run uvicorn app.main:app --reload
+uv run uvicorn sfmapi.runtime:create_app --factory --reload
 ```
 
 Verify:

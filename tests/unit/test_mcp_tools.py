@@ -272,8 +272,8 @@ def test_sfmapi_serve_cli_sets_mcp_mode(monkeypatch: pytest.MonkeyPatch) -> None
     assert os.environ["SFMAPI_MCP_MODE"] == "local"
     assert calls == [
         (
-            "app.main:app",
-            {"host": "127.0.0.1", "port": 8123, "reload": False},
+            "sfmapi.runtime:create_app",
+            {"factory": True, "host": "127.0.0.1", "port": 8123, "reload": False},
         )
     ]
 

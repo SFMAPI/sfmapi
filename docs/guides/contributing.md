@@ -8,7 +8,7 @@ uv pip install -e ".[dev]"
 cp .env.example .env
 uv run alembic upgrade head
 uv run pytest -q
-uv run uvicorn app.main:app --reload
+uv run uvicorn sfmapi.runtime:create_app --factory --reload
 ```
 
 ## Running tests under both DB engines
@@ -79,7 +79,7 @@ mechanically.
    the entry function:
 
    ```python
-   from app.adapters.backend import require_backend_method
+   from sfmapi.backends import require_backend_method
    from app.workers.tasks._registry import task_handler
 
    @task_handler("my_stage")
@@ -160,10 +160,10 @@ own repos and satisfy the smallest protocol layer they need.
    `colmap.feature_extractor` or `openmvg.compute_features` belong in
    `list_backend_actions()`, not in `ALL_KNOWN`.
 3. Register the factory at app startup:
-   ``register_backend("name", MyBackend)``.
+   ``sfmapi.runtime.register_backend("name", MyBackend)``.
 4. Add a backend contract test:
    ``assert_backend_contract(MyBackend())`` from
-   `app.adapters.backend_contract`. This catches unknown portable
+   `sfmapi.backends`. This catches unknown portable
    capabilities, malformed action/config descriptors, duplicate ids,
    non-portable `required_capabilities`, runtime-managed options in
    `backend_options` schemas, and action/config ids leaked through

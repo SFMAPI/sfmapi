@@ -1,7 +1,7 @@
 [project]
 name = "sfmapi"
 version = "0.0.1"
-description = "Generic HTTP/REST API for Structure-from-Motion tasks. Backend-agnostic; reference implementation uses pycolmap."
+description = "Generic HTTP/REST API and wire contract for Structure-from-Motion tasks."
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
 classifiers = [
@@ -38,7 +38,7 @@ sfmapi-mcp = "app.mcp.server:main"
 
 [project.optional-dependencies]
 # sfmapi ships no concrete SfM backend; install a third-party
-# package implementing `app.adapters.backend.SfmBackend` and
+# package implementing `sfmapi.backends.SfmBackend` and
 # register it at app startup. This `pyproject.toml` does not
 # declare any backend or segmentation dependency on purpose —
 # they all belong in separate packages.
@@ -69,7 +69,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["app", "sfm_hub"]
+packages = ["app", "sfmapi", "sfm_hub"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

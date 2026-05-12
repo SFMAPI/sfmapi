@@ -8,8 +8,8 @@ content-addressed storage, multi-tenant from day 1.
 This repository ships the **wire spec + orchestration shell only** —
 no concrete SfM engine. Backend implementations live in their own
 repositories, satisfy the smallest applicable protocol in
-`app.adapters.backend`, and register at startup via
-`register_backend("name", Backend)`. A no-op
+`sfmapi.backends`, and register at startup via
+`sfmapi.runtime.register_backend("name", Backend)`. A no-op
 `StubBackend` is bundled for tests and `SFMAPI_EPHEMERAL=true` demos.
 
 Client SDKs now live in the sibling `sfmapi-sdk` repository. This repo owns
@@ -75,14 +75,14 @@ See [docs/](https://sfmapi.github.io/) for the user-facing site,
 
 The defaults in `.env.example` give you a single-process install:
 SQLite file beside the working dir, filesystem blob store, in-process
-worker. Drop in a backend package later via `register_backend()`.
+worker. Drop in a backend package later via `sfmapi.runtime.register_backend()`.
 
 ```bash
 uv venv
 uv pip install -e ".[dev]"
 cp .env.example .env
 uv run alembic upgrade head
-uv run uvicorn app.main:app --reload
+uv run uvicorn sfmapi.runtime:create_app --factory --reload
 # In another shell:
 curl http://localhost:8080/healthz
 curl http://localhost:8080/version
@@ -100,7 +100,7 @@ For a fully ephemeral, in-memory run (no files written, all state
 wiped on shutdown):
 
 ```bash
-SFMAPI_EPHEMERAL=true uv run uvicorn app.main:app
+SFMAPI_EPHEMERAL=true uv run uvicorn sfmapi.runtime:create_app --factory
 ```
 
 For multi-instance / GPU-fleet deployments: switch

@@ -83,7 +83,7 @@ Enable request profiling only during diagnosis:
 SFMAPI_PROFILE_REQUESTS=true \
 SFMAPI_PROFILE_MIN_MS=100 \
 SFMAPI_PROFILE_DIR=./profiles \
-uv run uvicorn app.main:app
+uv run uvicorn sfmapi.runtime:create_app --factory
 ```
 
 Profiled responses include a `Server-Timing: app;dur=<ms>` header.

@@ -8,7 +8,7 @@ page is the contract.
 
 Backends use structural typing: no inheritance, no metaclass, just the
 methods they actually support. The minimum contract is
-[`app.adapters.backend.Backend`][prot]: `name`, `version`, `vendor`,
+[`sfmapi.backends.Backend`][prot]: `name`, `version`, `vendor`,
 `capabilities()`, and `runtime_versions()`.
 
 Use the smallest level that fits:
@@ -27,7 +27,7 @@ normal `501 CapabilityUnavailableError` instead of an internal
 
 ## Portable stage backend
 
-Full portable backends can satisfy [`app.adapters.backend.SfmBackend`][prot] by
+Full portable backends can satisfy [`sfmapi.backends.SfmBackend`][prot] by
 structural typing — no inheritance required, no metaclass. A backend
 is any class with the right method names, signatures, and an
 identity triple (`name`, `version`, `vendor`).
@@ -35,7 +35,7 @@ identity triple (`name`, `version`, `vendor`).
 [prot]: ../server/adapters.md
 
 ```python
-from app.adapters.backend import ProgressReporter
+from sfmapi.backends import ProgressReporter
 
 class MyBackend:
     name = "my_backend"
@@ -121,7 +121,7 @@ class VendorCliBackend:
 ## Registering at startup
 
 ```python
-from app.adapters.registry import register_backend
+from sfmapi.runtime import register_backend
 
 register_backend("my_backend", MyBackend)
 ```
@@ -136,7 +136,7 @@ that `import my_backend` is the only thing the operator needs:
 
 ```python
 # my_backend/__init__.py
-from app.adapters.registry import register_backend
+from sfmapi.runtime import register_backend
 from .backend import MyBackend
 
 register_backend("my_backend", MyBackend)
@@ -512,7 +512,7 @@ Use sfmapi's combined contract checker in your backend package so this
 split is enforced in CI:
 
 ```python
-from app.adapters.backend_contract import assert_backend_contract
+from sfmapi.backends import assert_backend_contract
 from my_backend import MyBackend
 
 def test_backend_contract():
@@ -591,11 +591,11 @@ delivery failed.
 - **Configure CUDA.** Backends that need a GPU must check at startup
   and either work in CPU-fallback mode or raise from `__init__`.
 - **Validate your dicts.** The `dict` return shape is loose; clients
-  validate against `app.schemas.api.scene` if they care.
+  validate against the OpenAPI scene artifact schemas if they care.
 
 ## Reference: the no-op stub
 
-[`app.adapters.stub_backend.StubBackend`][stub] is the reference
+[`app.adapters.stub_backend.StubBackend`][stub] is the internal no-op reference
 that ships in this repo. It exists for tests, ephemeral mode, and
 SDK live-server suites. Every method raises
 `CapabilityUnavailableError`; `capabilities()` returns the empty
@@ -620,7 +620,7 @@ uv run pytest -m "contract" --backend=my_backend
 ```
 
 …where the `--backend` arg is whatever your test harness wires
-through `register_backend()` in a conftest. The contract tests
+through `sfmapi.runtime.register_backend()` in a conftest. The contract tests
 assert the protocol shape, not engine semantics — they catch
 "forgot to add the new method when sfmapi added one to the
 Protocol" regressions.

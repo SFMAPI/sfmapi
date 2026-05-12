@@ -21,7 +21,8 @@ def _serve(args: argparse.Namespace) -> None:
     import uvicorn
 
     uvicorn.run(
-        "app.main:app",
+        "sfmapi.runtime:create_app",
+        factory=True,
         host=args.host,
         port=args.port,
         reload=args.reload,
