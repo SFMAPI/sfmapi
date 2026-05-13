@@ -184,6 +184,20 @@ def test_external_tool_manifests_use_runtime_env_vars() -> None:
     assert "SFMAPI_SPHERESFM_EXECUTABLE" in spheresfm.runtime_modes.external_tool.env_vars
 
 
+def test_upstream_license_metadata_is_specific() -> None:
+    upstream = {
+        item.name: item.license
+        for manifest in list_manifests(include_entry_points=False)
+        for item in manifest.upstream_projects
+    }
+
+    assert upstream["COLMAP"] == "BSD-3-Clause"
+    assert upstream["Hierarchical Localization"] == "Apache-2.0"
+    assert upstream["InstantSfM"] == "CC-BY-NC-4.0"
+    assert upstream["SphereSfM"] == "BSD-3-Clause"
+    assert all(value != "Upstream license" for value in upstream.values())
+
+
 def test_external_tool_detection_checks_env_and_version(monkeypatch: pytest.MonkeyPatch) -> None:
     manifest = get_manifest("colmap_cli").model_copy(deep=True)
     assert manifest.runtime_modes.external_tool is not None
