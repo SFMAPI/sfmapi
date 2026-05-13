@@ -168,6 +168,22 @@ def test_manifest_lookup_returns_expected_install_metadata() -> None:
     assert "colmap_cli" in manifest.provider_ids()
 
 
+def test_external_tool_manifests_use_runtime_env_vars() -> None:
+    colmap_cli = get_manifest("colmap_cli")
+    colmap_native = get_manifest("colmap_native")
+    realityscan = get_manifest("realityscan_cli")
+    spheresfm = get_manifest("spheresfm")
+
+    assert colmap_cli.runtime_modes.external_tool is not None
+    assert colmap_native.runtime_modes.external_tool is not None
+    assert realityscan.runtime_modes.external_tool is not None
+    assert spheresfm.runtime_modes.external_tool is not None
+    assert "SFMAPI_COLMAP_EXECUTABLE" in colmap_cli.runtime_modes.external_tool.env_vars
+    assert "SFMAPI_COLMAP_EXECUTABLE" in colmap_native.runtime_modes.external_tool.env_vars
+    assert "SFMAPI_RC_EXECUTABLE" in realityscan.runtime_modes.external_tool.env_vars
+    assert "SFMAPI_SPHERESFM_EXECUTABLE" in spheresfm.runtime_modes.external_tool.env_vars
+
+
 def test_external_tool_detection_checks_env_and_version(monkeypatch: pytest.MonkeyPatch) -> None:
     manifest = get_manifest("colmap_cli").model_copy(deep=True)
     assert manifest.runtime_modes.external_tool is not None

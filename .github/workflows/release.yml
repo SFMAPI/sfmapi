@@ -13,6 +13,7 @@ on:
 permissions:
   contents: write       # create release + upload assets
   packages: write       # push to GHCR
+  id-token: write       # PyPI trusted publishing
 
 concurrency:
   group: release-${{ github.ref }}
@@ -70,7 +71,7 @@ jobs:
             org.opencontainers.image.title=sfmapi-web
             org.opencontainers.image.version=${{ needs.resolve.outputs.version }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
       - name: Build & push
         uses: docker/build-push-action@v6
         with:
@@ -84,8 +85,37 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: false
 
+  publish-python:
+    needs: resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+      - name: Check package version
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          actual = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          expected = os.environ["VERSION"]
+          if actual != expected:
+              raise SystemExit(f"pyproject version {actual!r} does not match tag {expected!r}")
+          PY
+      - name: Build package
+        run: |
+          uv venv --seed
+          uv pip install build
+          .venv/bin/python -m build --sdist --wheel
+      - name: Publish to PyPI
+        if: github.event_name == 'push'
+        uses: pypa/gh-action-pypi-publish@release/v1
+
   publish-release:
-    needs: [resolve, build-and-push]
+    needs: [resolve, build-and-push, publish-python]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

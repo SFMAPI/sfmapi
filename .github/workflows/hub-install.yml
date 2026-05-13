@@ -1,0 +1,49 @@
+name: Hub Install
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hub-install-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install-registry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+      - name: Install sfmapi
+        run: |
+          uv sync --extra dev --extra mcp
+      - name: Install every GitHub plugin entry
+        run: |
+          uv run python - <<'PY'
+          import subprocess
+          import sys
+
+          from sfm_hub.registry import list_manifests
+
+          for manifest in list_manifests():
+              uv_runtime = manifest.runtime_modes.uv
+              if uv_runtime is None:
+                  print(f"skip {manifest.plugin_id}: no uv runtime")
+                  continue
+              ref = uv_runtime.ref or "main"
+              spec = f"{uv_runtime.package} @ git+{uv_runtime.url}@{ref}"
+              print(f"install {manifest.plugin_id}: {spec}")
+              subprocess.run(
+                  ["uv", "pip", "install", spec, "--no-deps"],
+                  check=True,
+                  stdout=sys.stdout,
+                  stderr=sys.stderr,
+              )
+          PY
+      - name: Validate installed entry points
+        run: uv run python -m bench.cli plugins --require-entry-points

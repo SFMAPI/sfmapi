@@ -45,8 +45,8 @@
     "docker": {},
     "external_tool": {
       "executable_names": ["colmap", "colmap.exe"],
-      "env_vars": ["COLMAP_EXE", "SFMAPI_COLMAP_EXE"],
-      "version_args": ["--version"]
+      "env_vars": ["SFMAPI_COLMAP_EXECUTABLE", "COLMAP_EXE", "SFMAPI_COLMAP_EXE"],
+      "version_args": ["help"]
     }
   },
   "capabilities": ["features.extract.sift", "pairs.exhaustive", "matches.verify", "map.incremental", "ba.standard"],

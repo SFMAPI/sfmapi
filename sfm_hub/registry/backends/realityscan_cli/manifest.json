@@ -3,7 +3,7 @@
   "display_name": "RealityScan CLI",
   "description": "Backend plugin for installed RealityScan or RealityCapture command-line tools.",
   "package_name": "sfmapi-realityscan",
-  "github_url": "https://github.com/SFMAPI/sfmapi-realityscan.git",
+  "github_url": "https://github.com/SFMAPI/sfmapi_realityscan.git",
   "entry_points": ["sfmapi_realityscan.plugin:plugin"],
   "providers": [
     {
@@ -17,13 +17,19 @@
   "runtime_modes": {
     "uv": {
       "source": "git",
-      "url": "https://github.com/SFMAPI/sfmapi-realityscan.git",
+      "url": "https://github.com/SFMAPI/sfmapi_realityscan.git",
       "ref": "main",
       "package": "sfmapi-realityscan"
     },
     "external_tool": {
       "executable_names": ["RealityScan.exe", "RealityCapture.exe"],
-      "env_vars": ["REALITYSCAN_EXE", "REALITYCAPTURE_EXE"],
+      "env_vars": [
+        "SFMAPI_RC_EXECUTABLE",
+        "SFMAPI_REALITYCAPTURE_EXECUTABLE",
+        "SFMAPI_REALITYSCAN_EXECUTABLE",
+        "REALITYSCAN_EXE",
+        "REALITYCAPTURE_EXE"
+      ],
       "version_args": ["-version"]
     }
   },

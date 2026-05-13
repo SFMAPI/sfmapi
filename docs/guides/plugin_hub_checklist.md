@@ -119,7 +119,7 @@ sfmapi plugins install local_test \
 | `colmap_cli` | `colmap_cli` | `https://github.com/SFMAPI/sfmapi_colmap_cli.git` | `uv`, `external_tool`, `docker` |
 | `pycolmap` | `colmap_pycolmap` | `https://github.com/SFMAPI/sfmapi_pycolmap.git` | `uv`, `docker` |
 | `colmap_native` | `colmap_cli`, `colmap_pycolmap`, `colmap_cpp_native`, `colmap_cpp_inmemory` | `https://github.com/SFMAPI/sfmapi_colmap.git` | `uv`, `external_tool`, `docker` |
-| `realityscan_cli` | `realityscan_cli` | `https://github.com/SFMAPI/sfmapi-realityscan.git` | `uv`, `external_tool` |
+| `realityscan_cli` | `realityscan_cli` | `https://github.com/SFMAPI/sfmapi_realityscan.git` | `uv`, `external_tool` |
 | `hloc` | `hloc` | `https://github.com/SFMAPI/sfmapi_hloc.git` | `uv`, `docker` |
 | `instantsfm` | `instantsfm` | `https://github.com/SFMAPI/sfmapi_instantsfm.git` | `uv`, `docker` |
 | `spheresfm` | `spheresfm` | `https://github.com/SFMAPI/sfmapi_spheresfm.git` | `uv`, `external_tool`, `docker` |

@@ -62,6 +62,7 @@ Look up the normative contract and project-level release history.
 
 - {doc}`SFMAPI specification <spec>`
 - {doc}`Changelog <changelog>`
+- {doc}`Release policy <guides/release_policy>`
 :::
 
 ::::
@@ -154,6 +155,7 @@ spec
 :maxdepth: 1
 
 guides/contributing
+guides/release_policy
 server/orchestrator
 server/storage
 server/workers
