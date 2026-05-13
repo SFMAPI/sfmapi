@@ -31,6 +31,8 @@ def _isolate_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Itera
     monkeypatch.setenv("SFMAPI_AUTH_MODE", "none")
     monkeypatch.setenv("SFMAPI_DEFAULT_TENANT", "default")
     monkeypatch.setenv("SFMAPI_LEASE_TTL_SECONDS", "5")
+    monkeypatch.setenv("SFMAPI_MCP_MODE", "off")
+    monkeypatch.setenv("SFMAPI_MCP_ENABLED", "false")
     # Avoid touching Redis in tests; route every task through inline runner.
     monkeypatch.setenv("SFMAPI_INLINE_TASKS", "true")
     # sfmapi ships no concrete backend; register a test stub so

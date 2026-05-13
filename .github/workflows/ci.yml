@@ -29,7 +29,7 @@ jobs:
           version: "latest"
       - name: Install
         run: |
-          uv sync --extra dev
+          uv sync --extra dev --extra mcp
           uv pip install -e "$SFMAPI_SDK_REPO/python"
           uv pip install -e "$SFMAPI_SDK_REPO/python/sfmapi_client_gen"
       - name: Ruff lint
@@ -52,7 +52,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - name: Install
         run: |
-          uv sync --extra dev
+          uv sync --extra dev --extra mcp
           uv pip install -e "$SFMAPI_SDK_REPO/python"
           uv pip install -e "$SFMAPI_SDK_REPO/python/sfmapi_client_gen"
       - name: Test (SQLite)
@@ -87,7 +87,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - name: Install
         run: |
-          uv sync --extra dev
+          uv sync --extra dev --extra mcp
           uv pip install -e "$SFMAPI_SDK_REPO/python"
           uv pip install -e "$SFMAPI_SDK_REPO/python/sfmapi_client_gen"
       - name: Wait for postgres
