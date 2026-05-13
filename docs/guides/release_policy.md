@@ -35,6 +35,10 @@ manifests but skips GitHub install and entry-point checks.
 
 ## Branch policy
 
-`main` is protected in GitHub. Required checks are the normal push CI
-jobs for each repo. Long-running scheduled/manual jobs report health but
-are not merge gates.
+`main` should be protected with the normal push CI jobs as required
+checks. This is active for the public repos and for private repos where
+the GitHub plan allows private branch protection. Private plugin repos
+without that feature still run CI on push, but GitHub will not enforce
+required checks until the repo is made public or the organization plan is
+upgraded. Long-running scheduled/manual jobs report health but are not
+merge gates.
