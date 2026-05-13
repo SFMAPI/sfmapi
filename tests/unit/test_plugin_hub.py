@@ -34,7 +34,6 @@ def test_bundled_manifests_validate_and_include_initial_entries() -> None:
         "colmap_cli",
         "pycolmap",
         "colmap_native",
-        "colmap_legacy",
         "realityscan_cli",
         "hloc",
         "instantsfm",
