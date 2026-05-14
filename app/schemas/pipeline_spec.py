@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.api.artifacts import ArtifactInputMap
 
@@ -365,6 +365,8 @@ class BundleAdjustmentSpec(BaseModel):
         minimizes a CNN-feature error, not raw reprojection
         (capability ``ba.featuremetric``). Requires a backend with
         learned-feature support.
+      - ``rig``: rig-aware refinement that shares intrinsics + relative
+        extrinsics across a multi-camera rig (capability ``ba.rig``).
 
     ``loss_kernel`` chooses the robust loss applied to per-residual
     cost: ``squared`` (no robustification), ``huber``, ``cauchy``,
@@ -372,8 +374,10 @@ class BundleAdjustmentSpec(BaseModel):
     (in pixels for reprojection loss).
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     version: Literal[1] = 1
-    mode: Literal["standard", "two_stage", "featuremetric"] = "standard"
+    mode: Literal["standard", "two_stage", "featuremetric", "rig"] = "standard"
     provider: str | None = Field(
         None,
         min_length=1,

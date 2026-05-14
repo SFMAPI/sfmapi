@@ -130,27 +130,53 @@ async def test_unknown_image_get_returns_404(client) -> None:
     assert resp.status_code == 404
 
 
+_SIM3 = {
+    "rotation": {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0},
+    "translation": [0.0, 0.0, 0.0],
+    "scale": 2.0,
+}
+
+
 async def test_georegister_returns_501_when_backend_lacks_capability(client) -> None:
     """Without pycolmap the backend doesn't advertise georegister.sim3,
     so POST returns 501 with the canonical capability name."""
     resp = await client.post(
         "/v1/reconstructions/01HGHOST00000000000000000A/georegister",
-        json={
-            "rotation": {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0},
-            "translation": [0.0, 0.0, 0.0],
-            "scale": 2.0,
-        },
+        json={"mode": "sim3", "sim3": _SIM3},
     )
     assert resp.status_code == 501
     assert resp.json()["capability"] == "georegister.sim3"
+
+
+async def test_georegister_gps_mode_returns_501_without_capability(client) -> None:
+    """mode='gps' gates on georegister.gps, which the stub backend
+    doesn't advertise."""
+    resp = await client.post(
+        "/v1/reconstructions/01HGHOST00000000000000000A/georegister",
+        json={"mode": "gps"},
+    )
+    assert resp.status_code == 501
+    assert resp.json()["capability"] == "georegister.gps"
 
 
 async def test_georegister_rejects_missing_scale(client) -> None:
     resp = await client.post(
         "/v1/reconstructions/01HGHOST00000000000000000A/georegister",
         json={
-            "rotation": {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0},
-            "translation": [0.0, 0.0, 0.0],
+            "mode": "sim3",
+            "sim3": {
+                "rotation": {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0},
+                "translation": [0.0, 0.0, 0.0],
+            },
         },
+    )
+    assert resp.status_code == 422
+
+
+async def test_georegister_sim3_mode_requires_sim3(client) -> None:
+    """mode='sim3' (the default) without a sim3 body is a 422."""
+    resp = await client.post(
+        "/v1/reconstructions/01HGHOST00000000000000000A/georegister",
+        json={"mode": "sim3"},
     )
     assert resp.status_code == 422

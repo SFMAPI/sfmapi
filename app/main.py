@@ -7,6 +7,8 @@ Critical contract: importing this module must not import `pycolmap`,
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -19,13 +21,38 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app import __version__
 from app.api.v1 import health
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.errors import SfmApiError
 from app.core.ids import new_id
 from app.core.logging import bind_request_context, configure_logging, get_logger
 from app.core.profiling import RequestProfilingMiddleware
 
 REQUEST_ID_HEADER = "X-Request-ID"
+
+
+async def _janitor_loop(settings: Settings) -> None:
+    """Background sweep that reclaims leases orphaned by dead workers.
+
+    Runs in the web process (and inline-mode dev) on a
+    ``janitor_interval_seconds`` cadence. Per-tick errors are swallowed so
+    a transient DB hiccup doesn't kill the loop. Skipped in ephemeral mode
+    — that's a single process, so a "dead worker" can't happen.
+    """
+    from app.db.session import get_session_factory
+    from app.orchestrator.janitor import run_janitor_once
+
+    log = get_logger("sfmapi.janitor")
+    factory = get_session_factory()
+    interval = max(1, settings.janitor_interval_seconds)
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            async with factory() as session:
+                await run_janitor_once(session)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("sfmapi.janitor_sweep_failed", error=str(exc))
 
 
 def _request_validation_errors_for_wire(exc: RequestValidationError) -> list[dict[str, Any]]:
@@ -133,9 +160,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             log.info("sfmapi.capabilities_warmed")
         except Exception as exc:
             log.warning("sfmapi.capabilities_warm_failed", error=str(exc))
+    # Reclaim tasks orphaned by dead workers. Pointless in ephemeral mode
+    # (single process — no separate worker to die), so skip it there.
+    janitor_task: asyncio.Task[None] | None = None
+    if not settings.ephemeral:
+        janitor_task = asyncio.create_task(_janitor_loop(settings))
+        log.info("sfmapi.janitor_started", interval=settings.janitor_interval_seconds)
     try:
         yield
     finally:
+        if janitor_task is not None:
+            janitor_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await janitor_task
         if settings.ephemeral:
             from app.db.session import _engine as _shared_engine
             from app.storage.blobs import reset_memory_blob_store_for_tests
@@ -256,6 +293,7 @@ def create_app() -> FastAPI:
         backend,
         camera_models,
         capabilities,
+        dataset_stages,
         datasets,
         images,
         jobs,
@@ -263,6 +301,7 @@ def create_app() -> FastAPI:
         oneshot,
         pipelines,
         projects,
+        recon_stages,
         reconstructions,
         resume,
         sfm_stages,
@@ -283,7 +322,9 @@ def create_app() -> FastAPI:
     app.include_router(images.dataset_router, prefix="/v1")
     app.include_router(jobs.router, prefix="/v1")
     app.include_router(sfm_stages.router, prefix="/v1")
+    app.include_router(dataset_stages.router, prefix="/v1")
     app.include_router(reconstructions.router, prefix="/v1")
+    app.include_router(recon_stages.router, prefix="/v1")
     app.include_router(pipelines.router, prefix="/v1")
     app.include_router(resume.router, prefix="/v1")
     app.include_router(admin.router, prefix="/v1")

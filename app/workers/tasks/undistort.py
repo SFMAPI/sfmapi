@@ -1,4 +1,9 @@
-"""Relocalize images into an existing reconstruction."""
+"""Undistort a reconstruction's images + emit adjusted intrinsics.
+
+A portable sparse-SfM post-process (capability ``image.undistort``):
+rewrite images to a distortion-free camera model. NOT dense MVS —
+though it is commonly the first step of a dense pipeline.
+"""
 
 from __future__ import annotations
 
@@ -8,24 +13,24 @@ from app.adapters.backend import require_backend_method
 from app.db.models import Task
 from app.workers._task_io import read_state, stage_output_dir
 from app.workers.backend_resolver import backend_for_stage
+from app.workers.options import stage_options
 from app.workers.tasks._registry import task_handler
 
 
-@task_handler("relocalize")
+@task_handler("undistort")
 def run(task: Task) -> dict:
     inputs, spec = read_state(task)
     backend = backend_for_stage(spec)
-    relocalize = require_backend_method(
+    undistort_images = require_backend_method(
         backend,
-        "relocalize",
-        capability="relocalize.images",
+        "undistort_images",
+        capability="image.undistort",
     )
-    return relocalize(
+    return undistort_images(
         model_path=Path(inputs["model_path"]),
-        database_path=Path(inputs["database_path"]),
         image_root=Path(inputs["image_root"]),
         output_path=stage_output_dir(
-            root=inputs["reconstruction_root"], task=task, name="relocalize"
+            root=inputs["reconstruction_root"], task=task, name="undistort"
         ),
-        image_ids=spec.get("image_ids") or [],
+        spec=stage_options(spec),
     )

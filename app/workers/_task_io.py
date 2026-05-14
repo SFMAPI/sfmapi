@@ -16,7 +16,23 @@ typed as the result only.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.db.models import Task
+
+
+def stage_output_dir(*, root: str | Path, task: Task, name: str) -> Path:
+    """A fresh, created per-task output directory ``<root>/_<name>/<task_id>``.
+
+    The path is derived worker-side from a *stable* root (a
+    reconstruction or dataset root) plus the task id — it is NOT carried
+    in ``inputs``. That keeps the task's ``inputs_hash`` stable across
+    re-submits (so the cache short-circuits) while still giving each run
+    its own scratch dir.
+    """
+    out = Path(root) / f"_{name}" / task.task_id
+    out.mkdir(parents=True, exist_ok=True)
+    return out
 
 
 def read_state(task: Task) -> tuple[dict, dict]:

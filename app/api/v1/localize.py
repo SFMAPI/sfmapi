@@ -19,7 +19,7 @@ from app.api.v1._helpers import accepted_response
 from app.core.tenancy import current_tenant
 from app.db.session import get_db
 from app.schemas.api.jobs import JobAcceptedResponse
-from app.schemas.api.scene import Sim3
+from app.schemas.api.stages import GeoregisterRequest
 from app.services import sfm_stage_service
 
 router = APIRouter(prefix="/reconstructions/{recon_id}", tags=["localize"])
@@ -30,7 +30,7 @@ _PROVIDER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.-]*$"
 class LocalizationRequest(BaseModel):
     """Request body for ``POST /v1/reconstructions/{rid}/localize``."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     blob_sha: str = Field(..., min_length=64, max_length=64)
     sift: dict | None = None
@@ -82,29 +82,29 @@ async def localize(
 )
 async def georegister(
     recon_id: str,
-    body: Sim3,
-    provider: str | None = Query(
-        default=None,
-        min_length=1,
-        max_length=64,
-        pattern=_PROVIDER_PATTERN,
-        description="Optional provider id to execute this georegister job.",
-    ),
+    body: GeoregisterRequest,
     tenant_id: str = Depends(current_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """Apply a Sim(3) similarity transform to the reconstruction.
+    """Georegister the reconstruction.
 
-    The worker rewrites every camera + 3D point and seals a fresh
-    snapshot. Clients then read the new snapshot the same way they
-    read post-mapping snapshots.
+    ``mode=sim3`` (default) applies the supplied ``sim3`` transform;
+    ``mode=gps`` solves the transform from georeferenced inputs. Either
+    way the worker rewrites every camera + 3D point and seals a fresh
+    snapshot, which clients read like post-mapping snapshots.
     """
-    sim3 = body.model_dump(mode="json", by_alias=True)
+    spec = body.model_dump(mode="json")
     job_id, _tasks = await sfm_stage_service.submit_georegister(
-        session, tenant_id=tenant_id, recon_id=recon_id, sim3=sim3, provider=provider
+        session, tenant_id=tenant_id, recon_id=recon_id, spec=spec
     )
+    applied_sim3 = body.sim3.model_dump(mode="json", by_alias=True) if body.sim3 else None
     return accepted_response(
-        JobAcceptedResponse(job_id=job_id, recon_id=recon_id, applied_sim3=sim3, provider=provider)
+        JobAcceptedResponse(
+            job_id=job_id,
+            recon_id=recon_id,
+            applied_sim3=applied_sim3,
+            provider=spec.get("provider"),
+        )
     )
 
 

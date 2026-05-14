@@ -745,25 +745,39 @@ async def submit_georegister(
     *,
     tenant_id: str,
     recon_id: str,
-    sim3: dict[str, Any],
-    provider: str | None = None,
+    spec: dict[str, Any],
     inline: bool = False,
 ) -> tuple[str, list[Any]]:
-    """Apply a Sim(3) georegistration transform to a reconstruction."""
-    require_capability("georegister.sim3")
+    """Georegister a reconstruction.
+
+    ``spec["mode"]`` selects the path: ``sim3`` applies the supplied
+    ``spec["sim3"]`` transform (capability ``georegister.sim3``);
+    ``gps`` solves the transform from georeferenced inputs (capability
+    ``georegister.gps``). The worker reads ``spec["mode"]`` via
+    :func:`backend_for_stage` and dispatches to the matching backend
+    method.
+    """
+    mode = str(spec.get("mode") or "sim3")
+    capability = "georegister.gps" if mode == "gps" else "georegister.sim3"
+    require_capability(capability)
     r = await reconstruction_service.get_reconstruction(
         session, tenant_id=tenant_id, recon_id=recon_id
     )
+    provider_routing_service.apply_provider_resolution(
+        spec,
+        stage="georegister",
+        capability=capability,
+        project_id=r.project_id,
+        workspace=_routing_workspace(),
+    )
     rec_root, sparse_dir = _reconstruction_paths(tenant_id, r)
-    inputs = {
+    inputs: dict[str, Any] = {
         "recon_id": r.recon_id,
         "reconstruction_root": str(rec_root),
         "sparse_dir": str(sparse_dir),
-        "sim3": sim3,
     }
-    spec: dict[str, Any] = {"sim3": sim3}
-    if provider is not None:
-        spec["provider"] = provider
+    if spec.get("sim3"):
+        inputs["sim3"] = spec["sim3"]
     return await _submit_single_stage(
         session,
         tenant_id=tenant_id,
@@ -771,6 +785,341 @@ async def submit_georegister(
         recipe="georegister",
         kind="georegister",
         inputs=inputs,
+        spec=spec,
+        inline=inline,
+    )
+
+
+async def _recon_stage_base(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    recon_id: str,
+    needs_images: bool = False,
+) -> tuple[Reconstruction, dict[str, Any]]:
+    """Resolve a reconstruction and build the ``inputs`` block shared by
+    every reconstruction-scoped portable stage (``ba`` / ``triangulate``
+    / ``pgo`` / ``export`` / ``relocalize`` / ``undistort``).
+
+    ``model_path`` is the live ``sparse/`` dir; the worker derives its
+    own ``output_path`` from ``reconstruction_root`` + ``task_id`` so
+    the cache key stays stable across re-submits. When ``needs_images``
+    the stage also gets a local ``image_root`` + ``database_path`` —
+    upload sources are rejected here (the worker can't materialize on
+    demand for these stages).
+    """
+    r = await reconstruction_service.get_reconstruction(
+        session, tenant_id=tenant_id, recon_id=recon_id
+    )
+    rec_root, sparse_dir = _reconstruction_paths(tenant_id, r)
+    inputs: dict[str, Any] = {
+        "recon_id": r.recon_id,
+        "reconstruction_root": str(rec_root),
+        "model_path": str(sparse_dir),
+    }
+    if needs_images:
+        d = await dataset_service.get_dataset(session, tenant_id=tenant_id, dataset_id=r.dataset_id)
+        materialization = await derive_materialization(session, tenant_id=tenant_id, dataset=d)
+        image_root = materialization.get("image_root")
+        if not image_root:
+            raise ValidationError(
+                "this stage needs a local image_root; upload sources are not "
+                "supported here (the worker can't materialize on demand)"
+            )
+        inputs["image_root"] = image_root
+        inputs["database_path"] = reconstruction_database_path(tenant_id, r.project_id, r.recon_id)
+    return r, inputs
+
+
+async def _submit_recon_stage(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    recon_id: str,
+    recipe: str,
+    kind: str,
+    capability: str,
+    spec: dict[str, Any],
+    needs_images: bool = False,
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Capability-gate, resolve the provider, and submit a single
+    reconstruction-scoped stage task. ``require_capability`` runs first
+    so an unbacked deployment 501s before any DB work.
+
+    ``spec`` is mutated in place by ``apply_provider_resolution`` so the
+    caller (the route) can echo the resolved ``provider`` on the 202."""
+    require_capability(capability)
+    r, inputs = await _recon_stage_base(
+        session, tenant_id=tenant_id, recon_id=recon_id, needs_images=needs_images
+    )
+    provider_routing_service.apply_provider_resolution(
+        spec,
+        stage=recipe,
+        capability=capability,
+        project_id=r.project_id,
+        workspace=_routing_workspace(),
+    )
+    return await _submit_single_stage(
+        session,
+        tenant_id=tenant_id,
+        project_id=r.project_id,
+        recipe=recipe,
+        kind=kind,
+        inputs=inputs,
+        spec=spec,
+        inline=inline,
+    )
+
+
+def _bundle_adjust_capability(spec: dict[str, Any]) -> str:
+    mode = str(spec.get("mode") or "standard")
+    return {
+        "standard": "ba.standard",
+        "two_stage": "ba.two_stage",
+        "featuremetric": "ba.featuremetric",
+        "rig": "ba.rig",
+    }.get(mode, "ba.standard")
+
+
+async def submit_bundle_adjust(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    recon_id: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Standalone bundle adjustment over a reconstruction's sparse model."""
+    return await _submit_recon_stage(
+        session,
+        tenant_id=tenant_id,
+        recon_id=recon_id,
+        recipe="bundle_adjust",
+        kind="ba",
+        capability=_bundle_adjust_capability(spec),
+        spec=spec,
+        inline=inline,
+    )
+
+
+async def submit_triangulate(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    recon_id: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Re-triangulate a reconstruction against its feature database."""
+    return await _submit_recon_stage(
+        session,
+        tenant_id=tenant_id,
+        recon_id=recon_id,
+        recipe="triangulate",
+        kind="triangulate",
+        capability="triangulate.retri",
+        spec=spec,
+        needs_images=True,
+        inline=inline,
+    )
+
+
+async def submit_pose_graph_optimize(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    recon_id: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Pose-graph optimization over a reconstruction."""
+    return await _submit_recon_stage(
+        session,
+        tenant_id=tenant_id,
+        recon_id=recon_id,
+        recipe="pose_graph_optimize",
+        kind="pgo",
+        capability="pgo.optimize",
+        spec=spec,
+        inline=inline,
+    )
+
+
+async def submit_export(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    recon_id: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Export a reconstruction's sparse model to a portable format."""
+    fmt = str(spec.get("format") or "ply")
+    return await _submit_recon_stage(
+        session,
+        tenant_id=tenant_id,
+        recon_id=recon_id,
+        recipe="export",
+        kind="export",
+        capability=f"export.{fmt}",
+        spec=spec,
+        inline=inline,
+    )
+
+
+async def submit_relocalize(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    recon_id: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Register additional images into an existing reconstruction."""
+    return await _submit_recon_stage(
+        session,
+        tenant_id=tenant_id,
+        recon_id=recon_id,
+        recipe="relocalize",
+        kind="relocalize",
+        capability="relocalize.images",
+        spec=spec,
+        needs_images=True,
+        inline=inline,
+    )
+
+
+async def submit_undistort(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    recon_id: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Undistort a reconstruction's images + emit adjusted intrinsics."""
+    return await _submit_recon_stage(
+        session,
+        tenant_id=tenant_id,
+        recon_id=recon_id,
+        recipe="undistort",
+        kind="undistort",
+        capability="image.undistort",
+        spec=spec,
+        needs_images=True,
+        inline=inline,
+    )
+
+
+async def _submit_dataset_db_stage(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    dataset_id: str,
+    recipe: str,
+    kind: str,
+    capability: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Capability-gate, resolve the provider, and submit a single
+    dataset-scoped stage that operates on the dataset's feature
+    database (``vocab_tree`` / ``configure_rig`` / ``two_view``).
+
+    ``dataset_dir`` is always included so a stage that emits a sidecar
+    (``vocab_tree``) has a stable home; stages that don't (``two_view``,
+    ``configure_rig``) simply ignore it.
+
+    ``spec`` is mutated in place by ``apply_provider_resolution`` so the
+    caller (the route) can echo the resolved ``provider`` on the 202."""
+    require_capability(capability)
+    d = await dataset_service.get_dataset(session, tenant_id=tenant_id, dataset_id=dataset_id)
+    r, db_path = await _resolve_database_path(session, tenant_id=tenant_id, dataset=d, spec={})
+    provider_routing_service.apply_provider_resolution(
+        spec,
+        stage=recipe,
+        capability=capability,
+        project_id=d.project_id,
+        workspace=_routing_workspace(),
+    )
+    dataset_dir = Paths(get_settings()).dataset_root(tenant_id, d.project_id, d.dataset_id)
+    inputs: dict[str, Any] = {
+        "dataset_id": d.dataset_id,
+        "recon_id": r.recon_id,
+        "database_path": db_path,
+        "dataset_dir": str(dataset_dir),
+    }
+    return await _submit_single_stage(
+        session,
+        tenant_id=tenant_id,
+        project_id=d.project_id,
+        recipe=recipe,
+        kind=kind,
+        inputs=inputs,
+        spec=spec,
+        inline=inline,
+    )
+
+
+async def submit_build_vocab_tree(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    dataset_id: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Build a reusable vocabulary-tree retrieval index for a dataset."""
+    return await _submit_dataset_db_stage(
+        session,
+        tenant_id=tenant_id,
+        dataset_id=dataset_id,
+        recipe="vocab_tree",
+        kind="vocab_tree",
+        capability="index.vocab_tree",
+        spec=spec,
+        inline=inline,
+    )
+
+
+async def submit_configure_rig(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    dataset_id: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Declare or calibrate a multi-camera rig over a dataset's feature DB."""
+    return await _submit_dataset_db_stage(
+        session,
+        tenant_id=tenant_id,
+        dataset_id=dataset_id,
+        recipe="configure_rig",
+        kind="configure_rig",
+        capability="rigs.configure",
+        spec=spec,
+        inline=inline,
+    )
+
+
+async def submit_estimate_two_view(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    dataset_id: str,
+    spec: dict[str, Any],
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Estimate two-view geometry (E/F/H + relative pose) for image pairs."""
+    return await _submit_dataset_db_stage(
+        session,
+        tenant_id=tenant_id,
+        dataset_id=dataset_id,
+        recipe="two_view",
+        kind="two_view",
+        capability="geometry.two_view",
         spec=spec,
         inline=inline,
     )

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from app.adapters.backend import require_backend_method
 from app.db.models import Task
-from app.workers._task_io import read_state
+from app.workers._task_io import read_state, stage_output_dir
 from app.workers.backend_resolver import backend_for_stage
 from app.workers.tasks._registry import task_handler
 
@@ -24,5 +24,7 @@ def run(task: Task) -> dict:
         model_path=Path(inputs["model_path"]),
         database_path=Path(inputs["database_path"]),
         image_root=Path(inputs["image_root"]),
-        output_path=Path(inputs["output_path"]),
+        output_path=stage_output_dir(
+            root=inputs["reconstruction_root"], task=task, name="triangulate"
+        ),
     )
