@@ -406,8 +406,17 @@ async def execute_task(task_id: str) -> dict[str, Any]:
     Returns one of:
       ``{"status": "missing"}``  — task row gone.
       ``{"status": "busy"}``     — another worker holds the lease.
+      ``{"status": "cancelled"}``— job cancel was requested before pickup.
       ``{"status": "succeeded", "outputs": ...}``
       ``{"status": "failed", "error": ...}``
+
+    Cancellation is cooperative and checked at task pickup: if the parent
+    ``Job.cancel_requested`` flag is set before this worker acquires the
+    lease, the task short-circuits to ``cancelled`` (or ``cancelled_dirty``
+    when ``cancel_force`` is set) and never runs the handler. Mid-handler
+    cancellation is a per-handler concern and not yet wired. A job whose
+    every task already hit the cache (``succeeded`` in ``materialize_dag``)
+    cannot be cancelled — there is nothing left to short-circuit.
     """
     log = get_logger("worker.execute_task").bind(task_id=task_id, worker_id=WORKER_ID)
     settings = get_settings()
@@ -433,6 +442,18 @@ async def execute_task(task_id: str) -> dict[str, Any]:
             await session.commit()
             log.info("task.lease_busy")
             return {"status": "busy"}
+        # Cooperative cancellation: the lease gate above guarantees a single
+        # owner, so finalizing here can't race another worker. ``cancel_force``
+        # maps to ``cancelled_dirty`` (the task may have left partial state
+        # behind on a prior run); a plain request maps to ``cancelled``.
+        if job is not None and job.cancel_requested:
+            task.status = "cancelled_dirty" if job.cancel_force else "cancelled"
+            task.finished_at = now_utc()
+            await _mark_task_reconstruction_status(session, task, "failed")
+            await session.commit()
+            await _maybe_finalize_job(session, task.job_id)
+            log.info("task.cancelled", force=job.cancel_force)
+            return {"status": "cancelled"}
         task.status = "running"
         task.started_at = now_utc()
         await _mark_task_reconstruction_status(session, task, "running")

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.api.common import Link
 from app.schemas.api.scene import Sim3
@@ -87,10 +87,32 @@ class TaskOut(BaseModel):
     cache_key: str
     inputs_hash: str
     params_hash: str
+    provider: str | None = None
     outputs_ref: dict[str, object] | None = Field(
         default=None,
         validation_alias="outputs_ref_json",
     )
+    task_state: dict[str, Any] | None = Field(
+        default=None,
+        validation_alias="task_state_json",
+        exclude=True,
+    )
+
+    @model_validator(mode="after")
+    def _lift_provider(self) -> TaskOut:
+        """Surface the routing-resolved provider from the pre-execution
+        state carrier. ``apply_provider_resolution`` writes the resolved
+        id into ``task_state_json["spec"]["provider"]``; this lifts it to
+        a typed wire field so SDK codegen exposes it as a named accessor.
+        ``task_state`` itself is ``exclude=True`` — it's the carrier, not
+        part of the wire shape (the result lives in ``outputs_ref``)."""
+        if self.provider is None and isinstance(self.task_state, dict):
+            spec = self.task_state.get("spec")
+            if isinstance(spec, dict):
+                provider = spec.get("provider")
+                if isinstance(provider, str):
+                    self.provider = provider
+        return self
 
 
 class JobDetail(JobOut):
@@ -149,11 +171,14 @@ class JobProgressOut(BaseModel):
 class JobAcceptedResponse(BaseModel):
     """Canonical 202 envelope for endpoints that submit a Job.
 
-    Returned by every ``POST`` that enqueues SfM work
-    (`/datasets/{id}/features`, `/matches`, `/verify`, the
-    `/pipelines/{recipe}` recipes, and the localize / dense / mesh /
-    cubemap stages). Clients should follow ``Location`` to ``GET
-    /v1/jobs/{job_id}`` for status.
+    Returned by every ``POST`` that enqueues SfM work — the decomposed
+    pipeline stages (``features`` / ``matches`` / ``verify`` / ``map`` /
+    ``ba`` / ``triangulate`` / ``relocalize`` / ``pgo`` / ``export`` /
+    ``undistort`` / ...), the ``/pipelines/{recipe}`` recipe sugar, the
+    ``localize`` / ``georegister`` / ``reconstructions:merge`` /
+    ``similarity:build`` / ``artifacts:convert`` stages, and
+    backend-native extension actions. Clients should follow
+    ``Location`` to ``GET /v1/jobs/{job_id}`` for status.
 
     Stage-specific optional fields are typed here so SDK codegen can
     surface them as named accessors:

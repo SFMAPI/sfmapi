@@ -62,7 +62,12 @@ async def _read_task_spec(session_factory, task_id: str) -> dict[str, Any]:
 async def test_features_post_persists_provider_into_task_spec(client) -> None:
     """A ``provider`` posted on the features stage must arrive in the
     worker's ``Task.task_state_json["spec"]["provider"]``. Without
-    this, the new ``backend_for_stage(spec)`` plumbing is dead code."""
+    this, the new ``backend_for_stage(spec)`` plumbing is dead code.
+
+    Also pins the wire-side echo: the resolved provider is observable on
+    the 202 envelope AND on every ``TaskOut`` in ``GET /v1/jobs/{id}`` —
+    otherwise a routing-resolved provider would be invisible to clients.
+    """
     from app.adapters.registry import register_backend
     from app.adapters.stub_backend import StubBackend
     from app.db.session import get_session_factory
@@ -81,10 +86,22 @@ async def test_features_post_persists_provider_into_task_spec(client) -> None:
         },
     )
     assert resp.status_code == 202, resp.text
-    task_id = resp.json()["task_ids"][0]
+    body = resp.json()
+    task_id = body["task_ids"][0]
 
+    # The 202 envelope echoes the provider.
+    assert body["provider"] == "stub.features"
+
+    # It is persisted into the worker's pre-execution state...
     persisted_spec = await _read_task_spec(get_session_factory(), task_id)
     assert persisted_spec.get("provider") == "stub.features"
+
+    # ...and surfaced on every TaskOut in the job detail.
+    detail = await client.get(f"/v1/jobs/{body['job_id']}")
+    assert detail.status_code == 200, detail.text
+    task_rows = detail.json()["tasks"]
+    assert task_rows
+    assert all(t["provider"] == "stub.features" for t in task_rows)
 
 
 async def test_artifact_convert_persists_provider_into_task_spec(

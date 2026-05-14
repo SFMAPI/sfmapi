@@ -75,7 +75,7 @@ def _submodel_links(sm: Any) -> dict[str, Link]:
 class MergeRequest(BaseModel):
     """Request body for ``POST /v1/reconstructions:merge``."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     target_recon_id: str
     source_recon_ids: list[str] = Field(..., min_length=1)

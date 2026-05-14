@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 RuntimeMode = Literal["uv", "docker", "external_tool"]
 TrustTier = Literal["official", "verified", "community", "local"]
+
+# A manifest is the contract a backend ships; malformed values here are
+# invisible until install / discovery time, so validate the shapes up front.
+_PROVIDER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+_ENTRY_POINT_RE = re.compile(r"^[A-Za-z_][\w.]*:[A-Za-z_]\w*$")
+_GITHUB_URL_RE = re.compile(r"^https://github\.com/[^/\s]+/[^/\s]+")
+
+
+def _known_capabilities() -> frozenset[str]:
+    """The canonical capability vocabulary, imported lazily.
+
+    Late import: ``app.core.capabilities`` depends only on stdlib and never
+    imports ``sfm_hub``, so this adds no import cycle — but keeping it inside
+    the function avoids a module-load-time edge from the lower-level hub
+    package up into ``app``.
+    """
+    from app.core.capabilities import ALL_KNOWN
+
+    return ALL_KNOWN
 
 
 class UvRuntime(BaseModel):
@@ -17,6 +37,15 @@ class UvRuntime(BaseModel):
     url: str
     ref: str = "main"
     package: str
+
+    @field_validator("url")
+    @classmethod
+    def _url_is_github(cls, url: str) -> str:
+        if not _GITHUB_URL_RE.match(url):
+            raise ValueError(
+                f"uv runtime url must be a https://github.com/<owner>/<repo> url: {url!r}"
+            )
+        return url
 
 
 class DockerRuntime(BaseModel):
@@ -61,6 +90,23 @@ class ProviderManifest(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
     backend_actions: list[str] = Field(default_factory=list)
     priority_hint: int = 100
+
+    @field_validator("provider_id")
+    @classmethod
+    def _provider_id_format(cls, provider_id: str) -> str:
+        if not _PROVIDER_ID_RE.match(provider_id):
+            raise ValueError(f"provider_id must match {_PROVIDER_ID_RE.pattern!r}: {provider_id!r}")
+        return provider_id
+
+    @field_validator("capabilities")
+    @classmethod
+    def _capabilities_are_known(cls, capabilities: list[str]) -> list[str]:
+        unknown = sorted(set(capabilities) - _known_capabilities())
+        if unknown:
+            raise ValueError(
+                f"provider declares capabilities not in the sfmapi vocabulary: {', '.join(unknown)}"
+            )
+        return capabilities
 
 
 class LicenseInfo(BaseModel):
@@ -133,8 +179,32 @@ class PluginManifest(BaseModel):
 
     @field_validator("capabilities")
     @classmethod
-    def _capabilities_are_unique(cls, capabilities: list[str]) -> list[str]:
+    def _capabilities_are_unique_and_known(cls, capabilities: list[str]) -> list[str]:
+        unknown = sorted(set(capabilities) - _known_capabilities())
+        if unknown:
+            raise ValueError(
+                f"manifest declares capabilities not in the sfmapi vocabulary: {', '.join(unknown)}"
+            )
         return sorted(set(capabilities))
+
+    @field_validator("github_url")
+    @classmethod
+    def _github_url_format(cls, github_url: str) -> str:
+        if not _GITHUB_URL_RE.match(github_url):
+            raise ValueError(
+                f"github_url must be a https://github.com/<owner>/<repo> url: {github_url!r}"
+            )
+        return github_url
+
+    @field_validator("entry_points")
+    @classmethod
+    def _entry_points_format(cls, entry_points: list[str]) -> list[str]:
+        if not entry_points:
+            raise ValueError("a plugin manifest must declare at least one entry point")
+        bad = [ep for ep in entry_points if not _ENTRY_POINT_RE.match(ep)]
+        if bad:
+            raise ValueError(f"entry_points must use module:attr form: {', '.join(bad)}")
+        return entry_points
 
     def runtime_mode_names(self) -> list[RuntimeMode]:
         return self.runtime_modes.enabled_modes()

@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1._helpers import accepted_response
@@ -42,6 +42,8 @@ class PipelineRequest(BaseModel):
 
     Pair selection (``pairs``) and per-pair matching (``matcher``) are
     independent shapes (AIP-202)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     dataset_id: str
     features: FeaturesSpec = FeaturesSpec()

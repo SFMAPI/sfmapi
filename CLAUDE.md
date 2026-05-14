@@ -81,7 +81,7 @@ canonical source for "what is settled here?".
 - **Upload**: roll-our-own chunked. `POST /uploads → upload_id`,
   `PATCH /uploads/{id}` with `Content-Range`, `POST /uploads/{id}/finalize`.
   `Idempotency-Key` from day 1.
-- **Points serialization**: binary, fixed-width 26 B/point + 32 B header
+- **Points serialization**: binary, fixed-width 26 B/point + 44 B header
   (see `app/schemas/points_binary.py`). `Content-Type:
   application/x-sfm-points-v1`. Cursor pagination via HTTP `Range`.
 - **Realtime**: SSE-only for v0 (events + log replay via `Last-Event-ID`).
@@ -113,7 +113,7 @@ app/
     pipeline_spec.py     IncrementalSpec | GlobalSpec | HierarchicalSpec |
                          SphericalSpec discriminated union; each version=Literal[1]
     progress_event.py    versioned event vocabulary
-    points_binary.py     26 B/record + 32 B header binary format
+    points_binary.py     26 B/record + 44 B header binary format
     api/                 request/response models per resource
   sources/
     base.py              ImageSource protocol, ImageMaterialization

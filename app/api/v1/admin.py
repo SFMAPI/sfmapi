@@ -196,6 +196,7 @@ async def install_plugin(plugin_id: str, body: PluginInstallRequest) -> PluginIn
             package_name=body.package_name,
             dry_run=body.dry_run,
             allow_unsafe_execution=body.allow_unsafe_execution,
+            force=body.force,
         )
     )
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,6 +11,8 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from sfm_hub.install import InstallPlan
+
+_log = logging.getLogger(__name__)
 
 
 class InstalledPlugin(BaseModel):
@@ -65,6 +68,43 @@ def save_state(state: PluginState, path: Path | None = None) -> None:
     )
 
 
+def _record_installed(
+    state: PluginState,
+    record: InstalledPlugin,
+    *,
+    path: Path | None,
+) -> PluginState:
+    """Persist an install record, idempotent-by-ref.
+
+    Re-recording the same plugin with an identical method / source / ref /
+    enabled state is a no-op (no rewritten ``installed_at``). A record that
+    differs is treated as a reinstall: it overwrites the prior one but logs
+    a warning first, so a method/ref change isn't silent.
+    """
+    plugin_id = record.plugin_id
+    existing = state.installed.get(plugin_id)
+    if existing is not None:
+        same = (
+            existing.method == record.method
+            and existing.source_url == record.source_url
+            and existing.ref == record.ref
+            and existing.enabled == record.enabled
+        )
+        if same:
+            return state
+        _log.warning(
+            "sfm_hub.state.reinstall_overwrites_record",
+            extra={
+                "plugin_id": plugin_id,
+                "old": f"{existing.method}@{existing.ref}",
+                "new": f"{record.method}@{record.ref}",
+            },
+        )
+    state.installed[plugin_id] = record
+    save_state(state, path)
+    return state
+
+
 def record_install(
     plugin_id: str,
     plan: InstallPlan,
@@ -73,17 +113,19 @@ def record_install(
     enabled: bool = True,
 ) -> PluginState:
     state = load_state(path)
-    state.installed[plugin_id] = InstalledPlugin(
-        plugin_id=plugin_id,
-        method=plan.method,
-        source_url=plan.source.normalized_url,
-        ref=plan.source.ref,
-        resolved_commit=plan.resolved_commit,
-        installed_at=datetime.now(UTC).isoformat(),
-        enabled=enabled,
+    return _record_installed(
+        state,
+        InstalledPlugin(
+            plugin_id=plugin_id,
+            method=plan.method,
+            source_url=plan.source.normalized_url,
+            ref=plan.source.ref,
+            resolved_commit=plan.resolved_commit,
+            installed_at=datetime.now(UTC).isoformat(),
+            enabled=enabled,
+        ),
+        path=path,
     )
-    save_state(state, path)
-    return state
 
 
 def record_manual_install(
@@ -96,16 +138,18 @@ def record_manual_install(
     enabled: bool = True,
 ) -> PluginState:
     state = load_state(path)
-    state.installed[plugin_id] = InstalledPlugin(
-        plugin_id=plugin_id,
-        method=method,
-        source_url=source_url,
-        ref=ref,
-        installed_at=datetime.now(UTC).isoformat(),
-        enabled=enabled,
+    return _record_installed(
+        state,
+        InstalledPlugin(
+            plugin_id=plugin_id,
+            method=method,
+            source_url=source_url,
+            ref=ref,
+            installed_at=datetime.now(UTC).isoformat(),
+            enabled=enabled,
+        ),
+        path=path,
     )
-    save_state(state, path)
-    return state
 
 
 def set_enabled(plugin_id: str, enabled: bool, *, path: Path | None = None) -> PluginState:
@@ -118,10 +162,36 @@ def set_enabled(plugin_id: str, enabled: bool, *, path: Path | None = None) -> P
 
 
 def upsert_profile(profile: RoutingProfile, *, path: Path | None = None) -> PluginState:
+    """Create or replace a routing profile.
+
+    Every provider id in ``profile.routes`` must be declared by some known
+    plugin manifest (bundled or discovered) — otherwise a typo'd id
+    silently no-ops at routing time. Validating against the full manifest
+    universe (not just *installed* plugins) still lets operators stage a
+    routing profile before installing the plugin.
+    """
+    known = _known_provider_ids()
+    unknown = sorted({pid for providers in profile.routes.values() for pid in providers} - known)
+    if unknown:
+        raise KeyError(
+            f"routing profile {profile.name!r} references unknown provider id(s): "
+            f"{', '.join(unknown)}"
+        )
     state = load_state(path)
     state.profiles[profile.name] = profile
     save_state(state, path)
     return state
+
+
+def _known_provider_ids() -> set[str]:
+    """Provider ids declared by any bundled or discovered plugin manifest.
+
+    Late import: ``sfm_hub.registry`` -> ``sfm_hub.discovery`` -> this
+    module, so importing it at module load would cycle.
+    """
+    from sfm_hub.registry import list_manifests
+
+    return {provider_id for manifest in list_manifests() for provider_id in manifest.provider_ids()}
 
 
 def set_default_profile(name: str, *, path: Path | None = None) -> PluginState:

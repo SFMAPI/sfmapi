@@ -101,15 +101,73 @@ def detect_external_tools(manifests: list[PluginManifest]) -> dict[str, list[Too
     return out
 
 
+def _probe_uv_plugin(manifest: PluginManifest) -> DoctorCheck:
+    """Is a uv-installed plugin actually importable in this environment?
+
+    A discoverable ``sfmapi.backends`` entry point is the real signal that
+    the package is installed and loadable — far more than "the manifest
+    parsed". Imported lazily to avoid a load-time hub-internal cycle.
+    """
+    from sfm_hub.discovery import discovered_plugin_ids
+
+    if manifest.plugin_id in discovered_plugin_ids():
+        return DoctorCheck(
+            name="loadable",
+            status="pass",
+            detail=f"{manifest.plugin_id} entry point is discoverable",
+        )
+    return DoctorCheck(
+        name="loadable",
+        status="fail",
+        detail=(
+            f"{manifest.plugin_id} declares a uv runtime but no sfmapi.backends "
+            "entry point is discoverable — is the package installed here?"
+        ),
+    )
+
+
+def _probe_docker_plugin(manifest: PluginManifest) -> DoctorCheck:
+    """Verify the plugin's docker image is present (graceful if no docker)."""
+    docker = shutil.which("docker")
+    docker_runtime = manifest.runtime_modes.docker
+    image = docker_runtime.image if docker_runtime is not None else None
+    if docker is None:
+        return DoctorCheck(
+            name="docker_image",
+            status="warn",
+            detail="docker not on PATH; cannot verify the plugin image",
+        )
+    if not image:
+        return DoctorCheck(
+            name="docker_image",
+            status="warn",
+            detail="manifest docker runtime declares no image to inspect",
+        )
+    _out, err = _version_for(docker, ["image", "inspect", image])
+    if err:
+        return DoctorCheck(
+            name="docker_image",
+            status="fail",
+            detail=f"docker image {image!r} not available: {err}",
+        )
+    return DoctorCheck(
+        name="docker_image",
+        status="pass",
+        detail=f"docker image {image!r} is present",
+    )
+
+
 def doctor_manifest(manifest: PluginManifest, *, state: PluginState | None = None) -> DoctorReport:
     state = state or load_state()
     checks: list[DoctorCheck] = []
     installed = state.installed.get(manifest.plugin_id)
+    # The manifest reached us via ``get_manifest`` -> pydantic validation,
+    # so structural validity is genuine — but that's all this check asserts.
     checks.append(
         DoctorCheck(
             name="manifest",
             status="pass",
-            detail=f"{manifest.plugin_id} manifest is valid",
+            detail=f"{manifest.plugin_id} manifest schema is valid",
         )
     )
     checks.append(
@@ -127,6 +185,12 @@ def doctor_manifest(manifest: PluginManifest, *, state: PluginState | None = Non
                 detail="plugin is enabled" if installed.enabled else "plugin is disabled",
             )
         )
+    # Real runtime probes — one per declared runtime mode. These are the
+    # checks that can actually return ``fail``.
+    if manifest.runtime_modes.uv is not None:
+        checks.append(_probe_uv_plugin(manifest))
+    if manifest.runtime_modes.docker is not None:
+        checks.append(_probe_docker_plugin(manifest))
     external = manifest.runtime_modes.external_tool
     if external is not None:
         found = detect_external_tools([manifest]).get(manifest.plugin_id, [])
@@ -144,6 +208,35 @@ def doctor_manifest(manifest: PluginManifest, *, state: PluginState | None = Non
                 ),
             )
         )
+    # Surface manifest metadata that nothing else acts on, so ``doctor`` is
+    # the one place an operator sees conformance + license posture.
+    _conformance_status: dict[str, Literal["pass", "warn", "fail"]] = {
+        "passing": "pass",
+        "failing": "fail",
+        "partial": "warn",
+        "not_run": "warn",
+    }
+    checks.append(
+        DoctorCheck(
+            name="conformance",
+            status=_conformance_status.get(manifest.conformance.status, "warn"),
+            detail=(
+                f"conformance status={manifest.conformance.status}"
+                + (f" suite={manifest.conformance.suite}" if manifest.conformance.suite else "")
+            ),
+        )
+    )
+    checks.append(
+        DoctorCheck(
+            name="licenses",
+            status="pass" if manifest.licenses else "warn",
+            detail=(
+                ", ".join(item.name for item in manifest.licenses)
+                if manifest.licenses
+                else "manifest declares no licenses"
+            ),
+        )
+    )
     if any(check.status == "fail" for check in checks):
         status: Literal["pass", "warn", "fail"] = "fail"
     elif any(check.status == "warn" for check in checks):

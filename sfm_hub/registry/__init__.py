@@ -18,7 +18,15 @@ def list_manifests(*, include_entry_points: bool = True) -> list[PluginManifest]
     for child in _backend_root().iterdir():
         manifest_file = child / "manifest.json"
         if manifest_file.is_file():
-            manifests.append(PluginManifest.model_validate_json(manifest_file.read_text()))
+            # Validate eagerly with the bundled-manifest's path in the error
+            # so a malformed registry entry fails loudly with a useful
+            # location instead of a bare pydantic ValidationError.
+            try:
+                manifests.append(PluginManifest.model_validate_json(manifest_file.read_text()))
+            except Exception as exc:
+                raise ValueError(
+                    f"bundled registry manifest {child.name}/manifest.json is invalid: {exc}"
+                ) from exc
     if include_entry_points:
         by_id = {manifest.plugin_id: manifest for manifest in manifests}
         for manifest in discovered_manifests():

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from contextlib import suppress
 from typing import Any
 
@@ -82,6 +83,36 @@ def get_plugin(plugin_id: str) -> dict[str, Any]:
     }
 
 
+_HOST_OS = {"linux": "linux", "darwin": "macos", "win32": "windows"}
+
+
+def _compatibility_problems(manifest: PluginManifest) -> list[str]:
+    """Check the manifest's declared host compatibility against this host.
+
+    Returns a list of human-readable mismatch strings (empty == compatible).
+    Covers ``os`` (stdlib platform check) and ``python`` (PEP 440 specifier
+    via ``packaging``); ``cuda`` is advisory metadata and left ungated.
+    A malformed ``python`` specifier is skipped here — manifest validation
+    is the place to reject those.
+    """
+    compat = manifest.compatibility
+    problems: list[str] = []
+    host_os = _HOST_OS.get(sys.platform, sys.platform)
+    if compat.os and host_os not in compat.os:
+        problems.append(f"plugin targets os {sorted(compat.os)}, this host is {host_os!r}")
+    if compat.python:
+        from packaging.specifiers import InvalidSpecifier, SpecifierSet
+        from packaging.version import InvalidVersion, Version
+
+        with suppress(InvalidSpecifier, InvalidVersion):
+            host_py = Version(f"{sys.version_info.major}.{sys.version_info.minor}")
+            if host_py not in SpecifierSet(compat.python):
+                problems.append(
+                    f"plugin requires python {compat.python}, this interpreter is {host_py}"
+                )
+    return problems
+
+
 def install_plugin(
     plugin_id: str,
     *,
@@ -91,6 +122,7 @@ def install_plugin(
     package_name: str | None = None,
     dry_run: bool = True,
     allow_unsafe_execution: bool = False,
+    force: bool = False,
 ) -> dict[str, Any]:
     if not dry_run and not allow_unsafe_execution:
         raise ValidationError(
@@ -101,6 +133,20 @@ def install_plugin(
     manifest = None
     with suppress(KeyError):
         manifest = get_manifest(plugin_id)
+
+    # Pre-flight host-compatibility gate. A real install (not a dry-run
+    # plan) into an incompatible host is blocked unless force=true; the
+    # mismatches always ride back as ``warnings`` so a dry-run still
+    # surfaces them.
+    compat_warnings: list[str] = []
+    if manifest is not None:
+        compat_warnings = _compatibility_problems(manifest)
+        if compat_warnings and not dry_run and not force:
+            raise ValidationError(
+                "plugin is not compatible with this host: "
+                + "; ".join(compat_warnings)
+                + " — pass force=true to install anyway"
+            )
 
     if method != "uv":
         if manifest is None:
@@ -132,7 +178,7 @@ def install_plugin(
             "installed": not dry_run,
             "command": plan.command,
             "direct_reference": plan.direct_reference,
-            "warnings": plan.warnings,
+            "warnings": plan.warnings + compat_warnings,
             "resolved_commit": plan.resolved_commit,
         }
 
@@ -163,7 +209,7 @@ def install_plugin(
         "installed": installed,
         "command": plan.command,
         "direct_reference": plan.direct_reference,
-        "warnings": plan.warnings,
+        "warnings": plan.warnings + compat_warnings,
         "resolved_commit": plan.resolved_commit,
     }
 

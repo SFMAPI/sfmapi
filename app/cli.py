@@ -112,6 +112,7 @@ def _plugins_install(args: argparse.Namespace) -> None:
         package_name=args.package,
         dry_run=args.dry_run,
         allow_unsafe_execution=not args.dry_run,
+        force=args.force,
     )
     _print_json(result)
 
@@ -293,6 +294,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         "--dry-run",
         action="store_true",
         help="Plan the install without running uv/docker or recording state.",
+    )
+    plugins_install.add_argument(
+        "--force",
+        action="store_true",
+        help="Install even if the manifest's host compatibility (os/python) does not match.",
     )
     plugins_install.set_defaults(func=_plugins_install)
 

@@ -63,6 +63,10 @@ class PluginInstallRequest(BaseModel):
     package_name: str | None = None
     dry_run: bool = True
     allow_unsafe_execution: bool = False
+    force: bool = False
+    """Install even when the manifest's declared host compatibility
+    (os / python) does not match this host. Mismatches still ride back
+    in ``warnings``."""
 
 
 class PluginInstallResponse(BaseModel):

@@ -57,9 +57,16 @@ class VerifyRequest(_StageReqBase):
     input_artifacts: ArtifactInputMap = Field(default_factory=dict)
 
 
-def _job_response(job_id: str, tasks: list[Any]) -> JSONResponse:
+def _job_response(job_id: str, tasks: list[Any], provider: str | None = None) -> JSONResponse:
+    """Build the canonical 202 envelope.
+
+    ``provider`` is the routing-resolved provider id read back off the
+    mutated stage spec (``apply_provider_resolution`` writes it in place).
+    The server may resolve a provider the client never named — echoing it
+    here is the only way the client can learn which backend was chosen.
+    """
     return accepted_response(
-        JobAcceptedResponse(job_id=job_id, task_ids=[t.task_id for t in tasks])
+        JobAcceptedResponse(job_id=job_id, task_ids=[t.task_id for t in tasks], provider=provider)
     )
 
 
@@ -82,13 +89,17 @@ async def features(
     supported types via the ``features.extract.{type}`` capability
     flags. Re-running with an identical spec hits the cache.
     """
+    # Hold the spec dict: submit_features -> validate_features_config ->
+    # apply_provider_resolution mutates it in place with the resolved
+    # provider, which we then echo back on the 202.
+    spec = body.spec.model_dump(mode="json")
     job_id, tasks = await sfm_stage_service.submit_features(
         session,
         tenant_id=tenant_id,
         dataset_id=dataset_id,
-        spec=body.spec.model_dump(mode="json"),
+        spec=spec,
     )
-    return _job_response(job_id, tasks)
+    return _job_response(job_id, tasks, spec.get("provider"))
 
 
 @router.post(
@@ -113,21 +124,25 @@ async def matches(
     COLMAP SIFT. Requires features to have been extracted; returns
     202 + ``Location``.
     """
+    # validate_matches_config resolves pairs.provider and matcher.provider
+    # separately, mutating these sub-dicts in place. The matcher provider
+    # is the headline op, so echo that one on the 202.
+    spec = {
+        "pairs": body.pairs.model_dump(mode="json"),
+        "matcher": body.matcher.model_dump(mode="json"),
+    }
     job_id, tasks = await sfm_stage_service.submit_matches(
         session,
         tenant_id=tenant_id,
         dataset_id=dataset_id,
-        spec={
-            "pairs": body.pairs.model_dump(mode="json"),
-            "matcher": body.matcher.model_dump(mode="json"),
-        },
+        spec=spec,
         input_artifacts={
             **body.pairs.input_artifacts,
             **body.matcher.input_artifacts,
             **body.input_artifacts,
         },
     )
-    return _job_response(job_id, tasks)
+    return _job_response(job_id, tasks, spec["matcher"].get("provider"))
 
 
 @router.post(
@@ -148,11 +163,12 @@ async def verify(
     ``two_view_geometries.json``. Required before any mapping recipe.
     Returns 202 + ``Location`` pointing at the job.
     """
+    spec = body.spec.model_dump(mode="json")
     job_id, tasks = await sfm_stage_service.submit_verify(
         session,
         tenant_id=tenant_id,
         dataset_id=dataset_id,
-        spec=body.spec.model_dump(mode="json"),
+        spec=spec,
         input_artifacts={**body.spec.input_artifacts, **body.input_artifacts},
     )
-    return _job_response(job_id, tasks)
+    return _job_response(job_id, tasks, spec.get("provider"))

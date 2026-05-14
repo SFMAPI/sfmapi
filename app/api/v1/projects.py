@@ -40,7 +40,7 @@ class VideoFramesRequest(BaseModel):
     """``POST /v1/projects/{pid}/datasets:from_video`` — extract
     keyframes from a worker-local video file."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     video_path: str
     fps: float = Field(default=2.0, gt=0, le=120.0)
@@ -50,7 +50,7 @@ class VideoFramesRequest(BaseModel):
 class KaptureImportRequest(BaseModel):
     """``POST /v1/projects/{pid}/datasets:import_kapture``."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     archive_path: str  # extracted Kapture archive root on the worker
 
