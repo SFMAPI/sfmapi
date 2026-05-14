@@ -51,6 +51,7 @@ OPTIONAL_CAPABILITIES: tuple[str, ...] = (
     "features.extract.disk",
     "features.extract.r2d2",
     "features.extract.d2net",
+    "features.extract.sosnet",
     # Pair-selection strategies (one per PairStrategy)
     "pairs.exhaustive",
     "pairs.sequential",
@@ -67,6 +68,9 @@ OPTIONAL_CAPABILITIES: tuple[str, ...] = (
     "matchers.loftr",
     "matchers.mast3r",
     "matches.verify",
+    # Standalone two-view geometry estimation (E / F / H matrices,
+    # relative pose) outside the bundled verify stage.
+    "geometry.two_view",
     # Mapping
     "map.incremental",
     "map.global",
@@ -76,6 +80,8 @@ OPTIONAL_CAPABILITIES: tuple[str, ...] = (
     "ba.standard",
     "ba.two_stage",
     "ba.featuremetric",
+    # Rig-aware bundle adjustment (multi-camera rig refinement).
+    "ba.rig",
     "triangulate.retri",
     "relocalize.images",
     "pgo.optimize",
@@ -96,20 +102,38 @@ OPTIONAL_CAPABILITIES: tuple[str, ...] = (
     # Retrieval / similarity
     "similarity.dhash",
     "similarity.vlad",
+    # Build a reusable retrieval index (e.g. COLMAP vocab tree) that
+    # ``pairs.vocabtree`` / ``pairs.retrieval`` then consume.
+    "index.vocab_tree",
     # API-layer image helpers that require optional image-processing deps.
     "images.thumbnail",
     # Localization
     "localize.from_memory",
     # Geometry tooling
     "georegister.sim3",
+    # Estimate the georegistration transform from GPS / EXIF geo-tags or
+    # ground-control points (vs ``georegister.sim3`` which only APPLIES a
+    # caller-supplied Sim(3)).
+    "georegister.gps",
+    # Undistort images + emit adjusted intrinsics as a portable
+    # sparse-SfM post-process (COLMAP image_undistorter and equivalents).
+    "image.undistort",
     "projection.equirectangular_to_cubemap",
     "projection.cubemap_to_equirectangular",
     "projection.equirectangular_to_perspective",
     "projection.cubemap_rig",
     "spherical.to_cubemap",
     "spherical.render_cubemap",
+    # Multi-camera rig declaration / calibration (COLMAP 3.10+
+    # rig_configurator and equivalents).
+    "rigs.configure",
     # Inputs
     "pose_priors.read_write",
+    # The active backend CONSUMES pose priors during mapping (e.g. COLMAP
+    # pose_prior_mapper). Distinct from ``pose_priors.read_write``, which
+    # is the sfmapi-internal accept/store/forward affordance — a backend
+    # may forward priors it never uses.
+    "pose_priors.mapping",
     "inputs.imu",
     "inputs.timestamps",
     # Data ingest
@@ -127,6 +151,11 @@ OPTIONAL_CAPABILITIES: tuple[str, ...] = (
     "backend.action_jobs",
     "backend.config_schemas",
     "backend.artifact_contracts",
+    # Execution mode: the backend can run portable stages without
+    # materializing intermediate artifacts (no on-disk database / sparse
+    # model) — e.g. an in-process COLMAP bridge. Advisory: clients may
+    # prefer such a backend for ephemeral / low-IO workloads.
+    "compute.in_memory",
     # Segmentation
     "segment.sam",
 )
@@ -306,6 +335,12 @@ def detect_capabilities() -> Capabilities:
             caps.features["projection.equirectangular_to_cubemap"] = True
     except Exception:
         pass
+    # ``pose_priors.read_write`` is sfmapi-internal: sfmapi accepts pose
+    # priors on images, stores them, and forwards them into the mapping
+    # task — independent of the backend. Whether the backend then
+    # *consumes* those priors during mapping is a separate, backend-driven
+    # capability (``pose_priors.mapping``), advertised via the normal
+    # ``backend.capabilities()`` path above — NOT forced on here.
     caps.features["pose_priors.read_write"] = True
     # Observations / visibility sidecars are emitted by the snapshot
     # writer regardless of the SfM backend.

@@ -64,6 +64,10 @@ class EchoBackend(StubBackend):
         }
 
 
+class ProviderEchoBackend(EchoBackend):
+    name = "provider_echo"
+
+
 class FakeColmapBackend(StubBackend):
     name = "fake_colmap"
     version = "4.1-test"
@@ -214,6 +218,51 @@ async def test_backend_action_catalog_validate_and_run_job(
         assert output["action_id"] == "echo.echo"
         assert output["result"]["message"] == "hello"
         assert output["result"]["has_progress"] is True
+
+
+async def test_backend_action_api_can_target_provider_alias(
+    db_setup: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SFMAPI_BACKEND", "echo")
+    register_backend("echo", EchoBackend)
+    register_backend("provider_echo", ProviderEchoBackend, providers=["provider.echo"])
+    reset_settings_for_tests()
+    reset_capabilities_cache()
+    from app.main import create_app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=create_app()),
+        base_url="http://testserver",
+    ) as client:
+        project = (await client.post("/v1/projects", json={"name": "provider-actions"})).json()
+
+        actions = await client.get("/v1/backend/actions?provider=provider.echo")
+        assert actions.status_code == 200, actions.text
+        assert actions.json()["items"][0]["backend"] == "provider_echo"
+
+        valid = await client.post(
+            "/v1/backend/actions/echo.echo:validate",
+            json={"provider": "provider.echo", "inputs": {"message": "hello"}},
+        )
+        assert valid.status_code == 200, valid.text
+        assert valid.json()["valid"] is True
+
+        accepted = await client.post(
+            "/v1/backend/actions/echo.echo:run",
+            json={
+                "project_id": project["project_id"],
+                "provider": "provider.echo",
+                "inputs": {"message": "from-provider"},
+            },
+        )
+        assert accepted.status_code == 202, accepted.text
+        assert accepted.json()["backend"] == "provider_echo"
+        assert accepted.json()["provider"] == "provider.echo"
+        job = (await client.get(f"/v1/jobs/{accepted.json()['job_id']}")).json()
+        output = job["tasks"][0]["outputs_ref"]
+        assert output["backend"] == "provider_echo"
+        assert output["result"]["message"] == "from-provider"
 
 
 async def test_colmap_command_surface_is_adapted_as_backend_actions(

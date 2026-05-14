@@ -296,33 +296,43 @@ content-type: application/json
 
     "ba.standard":               true,
     "ba.two_stage":              true,
+    "ba.rig":                    false,
     "triangulate.retri":         true,
     "relocalize.images":         true,
     "pgo.optimize":              true,
+    "geometry.two_view":         false,
 
     "export.ply":                true,
     "export.nvm":                true,
     "export.colmap_text":        true,
     "export.colmap_bin":         true,
 
-    "dense.patch_match_stereo":  true,
-    "dense.stereo_fusion":       true,
-
     "similarity.dhash":          true,
     "similarity.vlad":           true,
+    "index.vocab_tree":          false,
 
     "localize.from_memory":      true,
     "georegister.sim3":          true,
+    "georegister.gps":           false,
+    "image.undistort":           false,
     "projection.equirectangular_to_cubemap": true,
     "projection.cubemap_to_equirectangular": false,
     "projection.equirectangular_to_perspective": false,
     "projection.cubemap_rig":    true,
+    "rigs.configure":            false,
 
     "pose_priors.read_write":    true,
+    "pose_priors.mapping":       false,
+    "compute.in_memory":         false,
     "segment.sam":               false
   }
 }
 ```
+
+> Dense MVS and meshing are **out of scope** for sfmapi (Appendix D);
+> capability names like `dense.*` / `mesh.*` are intentionally absent
+> from the canonical vocabulary. A backend MAY still expose those
+> operations through the backend-action catalog (§6.10).
 
 `backend` identifies the SfM engine powering this deployment;
 `features` is a flat dict from canonical capability name to bool.
@@ -341,8 +351,8 @@ content-type: application/problem+json
   "type":       "https://sfmapi/errors/capability_unavailable",
   "title":      "Capability not available in this deployment",
   "status":     501,
-  "detail":     "capability 'dense.patch_match_stereo' not supported by the current backend",
-  "capability": "dense.patch_match_stereo"
+  "detail":     "capability 'map.hierarchical' not supported by the current backend",
+  "capability": "map.hierarchical"
 }
 ```
 
@@ -670,6 +680,17 @@ reconstruction.
 A dataset with no registered images **MUST** be rejected with 422
 *before* a job is created.
 
+Every stage spec carries an optional `provider` selector. When set,
+the server **MUST** route execution to the backend factory registered
+for that sfm_hub provider id; when unset, the server **MAY** resolve
+one through routing profiles, and **MUST** raise `ProviderAmbiguityError`
+(422 with `candidates`) if several enabled providers can satisfy the
+stage with no resolution rule. Utility stages (`merge_recons`,
+`georegister`, `:to_cubemap`, `localize`, `:similarity:build`,
+`:render_cubemap`, `:project_images`, `:render_equirectangular`,
+`:render_perspective`) accept the same selector through a request
+body field or query parameter.
+
 ### 6.7 Jobs and progress
 
 | Method  | Path                          | Body / Headers                       | Returns             |
@@ -689,6 +710,22 @@ A dataset with no registered images **MUST** be rejected with 422
 `recipe ∈ {incremental, global, hierarchical, spherical}` and
 `spec.kind` **MUST** match `recipe` or the request **MUST** be rejected
 with 422.
+
+### 6.8.1 One-shot endpoints
+
+For "right now" use cases that don't need a Project / Dataset / Job
+row. Bytes are tempfile'd and deleted; no persistent state is
+created. Capped at `SFMAPI_ONESHOT_MAX_REQUEST_BYTES` (50 MiB
+default).
+
+| Method | Path                  | Body / Query                                      | Returns                  |
+|--------|-----------------------|---------------------------------------------------|--------------------------|
+| POST   | `/v1/oneshot/features`  | image bytes + `?type=&provider=&max_num_features=&use_gpu=&seed=` | `OneShotFeaturesResponse` |
+| POST   | `/v1/oneshot/localize`  | image bytes + `?recon_id=&type=&provider=&...`    | `OneShotLocalizeResponse` |
+
+The optional `provider` selector routes execution to a specific
+backend installed through sfm_hub without changing the process-wide
+`SFMAPI_BACKEND`. Unknown providers fail with 422.
 
 ### 6.9 Reconstructions, submodels, snapshots
 
@@ -1110,15 +1147,15 @@ MUST NOT require these endpoints.
 
 | Method | Path | Body / Query | Returns |
 |--------|------|--------------|---------|
-| GET | `/v1/backend` | - | active backend identity, runtime versions, extension links |
-| GET | `/v1/backend/actions` | `?page_token=&page_size=&include_schemas=false` | `Page<BackendAction>` |
-| GET | `/v1/backend/actions/{action_id}` | - | `BackendAction` with schemas |
-| POST | `/v1/backend/actions/{action_id}:validate` | `{inputs}` | validation result |
-| POST | `/v1/backend/actions/{action_id}:run` | `{project_id, inputs}` | 202 + `JobAcceptedResponse` |
-| GET | `/v1/backend/config-schemas` | `?page_token=&page_size=&include_schemas=true` | `Page<BackendConfigSchema>` |
-| GET | `/v1/backend/config-schemas/{config_id}` | - | `BackendConfigSchema` |
-| GET | `/v1/backend/artifact-contracts` | `?page_token=&page_size=` | `Page<BackendArtifactContract>` |
-| GET | `/v1/backend/artifact-contracts/{contract_id}` | - | `BackendArtifactContract` |
+| GET | `/v1/backend` | `?provider=` | backend identity, runtime versions, extension links |
+| GET | `/v1/backend/actions` | `?page_token=&page_size=&include_schemas=false&provider=` | `Page<BackendAction>` |
+| GET | `/v1/backend/actions/{action_id}` | `?provider=` | `BackendAction` with schemas |
+| POST | `/v1/backend/actions/{action_id}:validate` | `{provider?, inputs}` | validation result |
+| POST | `/v1/backend/actions/{action_id}:run` | `{project_id, provider?, inputs}` | 202 + `JobAcceptedResponse` |
+| GET | `/v1/backend/config-schemas` | `?page_token=&page_size=&include_schemas=true&provider=` | `Page<BackendConfigSchema>` |
+| GET | `/v1/backend/config-schemas/{config_id}` | `?provider=` | `BackendConfigSchema` |
+| GET | `/v1/backend/artifact-contracts` | `?page_token=&page_size=&provider=` | `Page<BackendArtifactContract>` |
+| GET | `/v1/backend/artifact-contracts/{contract_id}` | `?provider=` | `BackendArtifactContract` |
 | GET | `/v1/backend/providers` | `?page_token=&page_size=` | `Page<Provider>` |
 | GET | `/v1/backend/routing` | - | provider priority and routing-profile state |
 
@@ -1127,8 +1164,8 @@ Action ids SHOULD be stable dot-namespaced strings, such as
 URL-encode them when used as path segments. List responses SHOULD omit
 schemas by default; clients can pass `include_schemas=true` or fetch
 one action to build forms. `:run` creates a normal Job and uses the
-canonical accepted-job envelope with optional `action_id` and `backend`
-fields.
+canonical accepted-job envelope with optional `action_id`, `backend`,
+and `provider` fields.
 
 Config schema ids are stable dot-namespaced strings, such as
 `colmap.features.sift`. Each schema applies to a portable stage
@@ -1144,7 +1181,15 @@ provider page and still use the configured backend directly. If
 several enabled providers can satisfy the same portable stage and no
 request-level `provider` or project, workspace, default, or priority
 routing rule exists, the reference implementation returns a validation
-error instead of choosing one arbitrarily.
+error instead of choosing one arbitrarily. When a provider is resolved,
+portable worker stages execute through the backend factory registered
+for that provider alias. Backend action, config-schema, artifact-contract,
+artifact-conversion, one-shot, and MCP discovery surfaces accept the
+same provider selector when they need to target a specific installed
+backend. Combined pair-selection/matching jobs require
+`pairs.provider` and `matcher.provider` to resolve to the same provider;
+mixed-provider flows should exchange explicit pair or match artifacts
+between separate stages.
 
 ### 6.11 Admin [Reference-only]
 
@@ -1201,12 +1246,12 @@ lossless.
 
 Artifact conversion is a long-running operation:
 
-| Method | Path | Result |
-|--------|------|--------|
-| POST | `/v1/artifacts:import` | `StageArtifact` |
-| POST | `/v1/artifacts/{artifact_id}:conversionPlan` | `ArtifactConversionPlan` |
-| POST | `/v1/artifacts/{artifact_id}:convert` | 202 + `JobAcceptedResponse` |
-| POST | `/v1/artifacts/{artifact_id}:validate` | `ArtifactValidation` |
+| Method | Path | Body | Result |
+|--------|------|------|--------|
+| POST | `/v1/artifacts:import` | `ArtifactImportRequest` | `StageArtifact` |
+| POST | `/v1/artifacts/{artifact_id}:conversionPlan` | `{provider?, to_format?, accepted_formats?, require_lossless?}` | `ArtifactConversionPlan` |
+| POST | `/v1/artifacts/{artifact_id}:convert` | `{provider?, to_format?, accepted_formats?, to_kind?, name?, options?}` | 202 + `JobAcceptedResponse` |
+| POST | `/v1/artifacts/{artifact_id}:validate` | - | `ArtifactValidation` |
 
 `artifacts:import` registers an existing URI without copying bytes.
 The server **MUST** persist it as a normal stage artifact owned by a

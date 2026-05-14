@@ -507,6 +507,7 @@ async def submit_render_cubemap(
     dataset_id: str,
     face_size: int | None = None,
     spec: dict[str, Any] | None = None,
+    provider: str | None = None,
     inline: bool = False,
 ) -> tuple[str, list[Any]]:
     """Render every spherical panorama into 6 cubemap faces.
@@ -514,13 +515,21 @@ async def submit_render_cubemap(
     Refuses if the dataset isn't ``is_spherical=true``. The output is a
     directory under the dataset's workspace; the user can register it
     as a new ``local`` dataset for downstream pinhole-only pipelines.
+
+    ``provider`` and any ``provider`` already on the supplied ``spec``
+    dict (e.g. when callers passed a pre-built operation spec) are
+    folded onto the ``ProjectionJobRequest`` so the worker can route
+    correctly.
     """
-    cubemap_spec = CubemapProjectionSpec.model_validate(spec or {})
+    spec_dict = dict(spec or {})
+    inner_provider = spec_dict.pop("provider", None)
+    cubemap_spec = CubemapProjectionSpec.model_validate(spec_dict)
     if face_size is not None:
         cubemap_spec.face_size = int(face_size)
     request = ProjectionJobRequest(
         operation="equirectangular_to_cubemap",
         cubemap=cubemap_spec,
+        provider=provider or inner_provider,
     )
     return await submit_project_images(
         session,
@@ -639,6 +648,7 @@ async def submit_merge_recons(
     target_recon_id: str,
     source_recon_ids: list[str],
     sim3_aligners: list[dict[str, Any]] | None = None,
+    provider: str | None = None,
     inline: bool = False,
 ) -> tuple[str, list[Any]]:
     """Merge several reconstructions into ``target_recon_id``.
@@ -661,7 +671,9 @@ async def submit_merge_recons(
             )
         rec_root = paths.reconstruction_root(tenant_id, r.project_id, r.recon_id)
         source_dirs.append(str(rec_root / "sparse"))
-    spec = {"sim3_aligners": sim3_aligners or []}
+    spec: dict[str, Any] = {"sim3_aligners": sim3_aligners or []}
+    if provider is not None:
+        spec["provider"] = provider
     inputs = {
         "target_recon_id": target.recon_id,
         "target_reconstruction_root": str(target_root),
@@ -684,6 +696,7 @@ async def submit_to_cubemap(
     *,
     tenant_id: str,
     recon_id: str,
+    provider: str | None = None,
     inline: bool = False,
 ) -> tuple[str, list[Any]]:
     """Convert a spherical reconstruction to a cubemap rig (worker job).
@@ -713,6 +726,8 @@ async def submit_to_cubemap(
         "image_root": image_root,
     }
     spec: dict[str, Any] = {}
+    if provider is not None:
+        spec["provider"] = provider
     return await _submit_single_stage(
         session,
         tenant_id=tenant_id,
@@ -731,6 +746,7 @@ async def submit_georegister(
     tenant_id: str,
     recon_id: str,
     sim3: dict[str, Any],
+    provider: str | None = None,
     inline: bool = False,
 ) -> tuple[str, list[Any]]:
     """Apply a Sim(3) georegistration transform to a reconstruction."""
@@ -745,7 +761,9 @@ async def submit_georegister(
         "sparse_dir": str(sparse_dir),
         "sim3": sim3,
     }
-    spec = {"sim3": sim3}
+    spec: dict[str, Any] = {"sim3": sim3}
+    if provider is not None:
+        spec["provider"] = provider
     return await _submit_single_stage(
         session,
         tenant_id=tenant_id,
@@ -767,7 +785,11 @@ async def submit_localize(
     spec: dict[str, Any] | None = None,
     inline: bool = False,
 ) -> tuple[str, list[Any]]:
-    """Localize a single query image (`blob_sha`) against `recon_id`."""
+    """Localize a single query image (`blob_sha`) against `recon_id`.
+
+    ``spec`` may carry a ``provider`` key; the worker reads it via
+    ``backend_for_stage(spec)`` to route the call to a specific backend.
+    """
     require_capability("localize.from_memory")
     spec = spec or {}
     r = await reconstruction_service.get_reconstruction(
@@ -797,11 +819,14 @@ async def submit_vlad_index(
     tenant_id: str,
     dataset_id: str,
     spec: dict[str, Any] | None = None,
+    provider: str | None = None,
     inline: bool = False,
 ) -> tuple[str, list[Any]]:
     """Build a VLAD descriptor index for the dataset (worker job)."""
     require_capability("similarity.vlad")
-    spec = spec or {}
+    spec = dict(spec or {})
+    if provider is not None and "provider" not in spec:
+        spec["provider"] = provider
     d = await dataset_service.get_dataset(session, tenant_id=tenant_id, dataset_id=dataset_id)
     materialization = await derive_materialization(session, tenant_id=tenant_id, dataset=d)
     rows = (

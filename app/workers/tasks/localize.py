@@ -15,13 +15,13 @@ import shutil
 from pathlib import Path
 
 from app.adapters.backend import require_backend_method
-from app.adapters.registry import get_backend
 from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.core.paths import Paths
 from app.db.models import Task
 from app.storage.blobs import get_blob_store
 from app.workers._task_io import read_state
+from app.workers.backend_resolver import backend_for_stage
 from app.workers.tasks._registry import task_handler
 
 
@@ -61,8 +61,9 @@ def run(task: Task) -> dict:
     stage = paths.workspace_root / "_localize_stage" / task.task_id
     img_path = _materialize_query(blob_sha, query_path, stage)
     try:
+        backend = backend_for_stage(spec)
         localize_from_memory = require_backend_method(
-            get_backend(),
+            backend,
             "localize_from_memory",
             capability="localize.from_memory",
         )

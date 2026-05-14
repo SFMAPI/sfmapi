@@ -67,6 +67,13 @@ async def build(
     dataset_id: str,
     strategy: str = Query(default="dhash"),
     force: bool = Query(default=True),
+    provider: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+        description="Optional provider id to execute a vlad build job.",
+    ),
     tenant_id: str = Depends(current_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
@@ -79,10 +86,12 @@ async def build(
     """
     if strategy == "vlad":
         job_id, _tasks = await sfm_stage_service.submit_vlad_index(
-            session, tenant_id=tenant_id, dataset_id=dataset_id
+            session, tenant_id=tenant_id, dataset_id=dataset_id, provider=provider
         )
         return accepted_response(
-            JobAcceptedResponse(job_id=job_id, dataset_id=dataset_id, strategy="vlad")
+            JobAcceptedResponse(
+                job_id=job_id, dataset_id=dataset_id, strategy="vlad", provider=provider
+            )
         )
     index = await similarity_service.build_index(
         session,

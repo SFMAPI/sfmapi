@@ -19,7 +19,6 @@ from typing import Any
 
 from app.adapters.backend import require_backend_method
 from app.adapters.progress import call_with_optional_progress
-from app.adapters.registry import get_backend
 from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.core.paths import Paths
@@ -29,6 +28,7 @@ from app.storage.snapshot_emit import emit_snapshot_files
 from app.storage.snapshots import SnapshotStore
 from app.workers._materialize import materialize_image_set
 from app.workers._task_io import read_state
+from app.workers.backend_resolver import backend_for_stage
 from app.workers.options import stage_options
 from app.workers.progress import get_progress_reporter
 from app.workers.tasks._registry import task_handler
@@ -81,7 +81,7 @@ def run(task: Task) -> dict[str, Any]:
         options["input_artifacts"] = inputs["input_artifacts"]
     if progress is not None:
         progress.phase_started(phase)
-    backend = get_backend()
+    backend = backend_for_stage(spec)
     run_mapping = require_backend_method(
         backend,
         "run_mapping",

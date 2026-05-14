@@ -165,6 +165,10 @@ class JobAcceptedResponse(BaseModel):
     - ``target_recon_id`` / ``source_recon_ids`` — ``reconstructions:merge``
     - ``strategy`` — ``similarity:build``
     - ``action_id`` / ``backend`` — backend-native extension actions
+    - ``provider`` — sfm_hub provider id selected for execution (echoed
+      from the request so clients can confirm routing)
+    - ``artifact_id`` / ``target_format`` — ``artifacts:convert`` echoes
+      the source artifact and the chosen conversion target format
     """
 
     job_id: str
@@ -179,5 +183,6 @@ class JobAcceptedResponse(BaseModel):
     strategy: str | None = None
     action_id: str | None = None
     backend: str | None = None
+    provider: str | None = None
     artifact_id: str | None = None
     target_format: str | None = None

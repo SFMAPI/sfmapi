@@ -6,13 +6,40 @@ validation, content-type sniffing, spec-to-options translation).
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import pytest
 
+from app.adapters.registry import register_backend
+from app.adapters.stub_backend import StubBackend
 from app.core.errors import ValidationError
 from app.schemas.pipeline_spec import FeaturesSpec
 from app.services import oneshot_service
 
 pytestmark = pytest.mark.unit
+
+
+class OneShotProviderBackend(StubBackend):
+    name = "oneshot_provider"
+
+    def extract_features(
+        self,
+        *,
+        database_path: Path,
+        image_root: Path,
+        image_list: list[str],
+        options: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {"num_keypoints": 0}
+
+    def read_keypoints(
+        self,
+        *,
+        database_path: Path,
+        image_id: int,
+    ) -> tuple[list[list[float]], bytes, int]:
+        return [], b"", 128
 
 
 def test_extract_features_oneshot_rejects_empty_body() -> None:
@@ -72,3 +99,21 @@ def test_sift_options_from_spec_passes_backend_options_through() -> None:
     )
     assert out["edge_threshold"] == 5.0
     assert out["peak_threshold"] == 0.01
+
+
+def test_extract_features_oneshot_resolves_provider_alias() -> None:
+    register_backend(
+        "oneshot_provider",
+        OneShotProviderBackend,
+        providers=["oneshot.provider"],
+    )
+    png_header = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (1).to_bytes(4, "big") * 2
+
+    out = oneshot_service.extract_features_oneshot(
+        png_header,
+        FeaturesSpec(provider="oneshot.provider"),
+        content_type="image/png",
+    )
+
+    assert out.runtime.backend == "oneshot_provider"
+    assert out.spec["provider"] == "oneshot.provider"

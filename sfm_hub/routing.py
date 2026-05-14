@@ -70,6 +70,29 @@ def provider_records(
     return sorted(rows, key=lambda row: (row.provider.priority_hint, row.provider.provider_id))
 
 
+def provider_enabled(provider_id: str, *, state: PluginState | None = None) -> bool | None:
+    """Return enabled state for a known installed provider, or None if unknown to sfm_hub."""
+
+    matches = [
+        row
+        for row in provider_records(
+            state=state,
+            installed_only=True,
+            enabled_only=False,
+        )
+        if row.provider.provider_id == provider_id
+    ]
+    if not matches:
+        return None
+    return any(row.enabled for row in matches)
+
+
+def ensure_provider_enabled(provider_id: str, *, state: PluginState | None = None) -> None:
+    enabled = provider_enabled(provider_id, state=state)
+    if enabled is False:
+        raise KeyError(f"provider {provider_id!r} is disabled")
+
+
 def _candidate_records(
     *,
     stage: str,

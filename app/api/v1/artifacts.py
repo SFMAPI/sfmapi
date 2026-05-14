@@ -116,6 +116,7 @@ async def convert_artifact(
             task_ids=[task.task_id for task in tasks],
             artifact_id=artifact_id,
             target_format=target_format,
+            provider=body.provider,
         )
     )
 

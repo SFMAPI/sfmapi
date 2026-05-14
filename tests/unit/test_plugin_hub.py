@@ -13,12 +13,13 @@ from sfm_hub.doctor import detect_external_tools
 from sfm_hub.install import build_docker_install_plan, build_install_plan, parse_github_source
 from sfm_hub.models import PluginManifest
 from sfm_hub.registry import get_manifest, list_manifests, search_manifests
-from sfm_hub.routing import ProviderAmbiguityError, resolve_provider
+from sfm_hub.routing import ProviderAmbiguityError, ensure_provider_enabled, resolve_provider
 from sfm_hub.state import (
     RoutingProfile,
     load_state,
     record_manual_install,
     save_state,
+    set_enabled,
     set_project_profile,
     upsert_profile,
 )
@@ -121,6 +122,15 @@ def test_provider_resolution_uses_profiles_and_rejects_ambiguity() -> None:
     save_state(state)
 
     assert resolve_provider(stage="features", capability="features.extract.sift") == "colmap_cli"
+
+
+def test_disabled_provider_is_rejected_for_runtime_resolution() -> None:
+    record_manual_install("hloc", method="entry_point", enabled=False)
+
+    with pytest.raises(KeyError, match="disabled"):
+        ensure_provider_enabled("hloc")
+
+    ensure_provider_enabled("not_registered_in_hub")
 
 
 def test_provider_resolution_uses_project_profile_before_default() -> None:
@@ -242,8 +252,11 @@ def test_entry_point_discovery_loads_plugin_manifest(monkeypatch: pytest.MonkeyP
 
 
 def test_entry_point_loader_registers_backend_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    manifest_obj = get_manifest("hloc")
+
     class PluginObject:
         backend_name = "entry_backend"
+        manifest = manifest_obj
 
         @staticmethod
         def backend_factory() -> object:
@@ -268,11 +281,204 @@ def test_entry_point_loader_registers_backend_factory(monkeypatch: pytest.Monkey
         discovery.metadata, "entry_points", lambda: FakeEntryPoints([FakeEntryPoint()])
     )
     registered: dict[str, object] = {}
+    providers: dict[str, object] = {}
 
     def register_backend(name: str, factory: object) -> None:
         registered[name] = factory
 
-    loaded = load_backend_entry_points(register_backend)  # type: ignore[arg-type]
+    def register_provider(provider_id: str, factory: object) -> None:
+        providers[provider_id] = factory
 
-    assert loaded[0].plugin_id == "entry_backend"
+    loaded = load_backend_entry_points(  # type: ignore[arg-type]
+        register_backend,
+        register_provider=register_provider,
+    )
+
+    assert loaded[0].plugin_id == "hloc"
     assert "entry_backend" in registered
+    assert providers["hloc"] is registered["entry_backend"]
+
+
+def test_entry_point_loader_skips_disabled_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
+    manifest_obj = get_manifest("hloc")
+    record_manual_install("hloc", method="uv")
+    set_enabled("hloc", False)
+
+    class PluginObject:
+        backend_name = "hloc"
+        manifest = manifest_obj
+
+        @staticmethod
+        def backend_factory() -> object:
+            return object()
+
+    class FakeEntryPoint:
+        name = "hloc"
+        value = "fake.module:plugin"
+        dist = None
+
+        def load(self) -> PluginObject:
+            return PluginObject()
+
+    class FakeEntryPoints(list[FakeEntryPoint]):
+        def select(self, *, group: str) -> list[FakeEntryPoint]:
+            assert group == "sfmapi.backends"
+            return list(self)
+
+    import sfm_hub.discovery as discovery
+
+    monkeypatch.setattr(
+        discovery.metadata, "entry_points", lambda: FakeEntryPoints([FakeEntryPoint()])
+    )
+    registered: dict[str, object] = {}
+    providers: dict[str, object] = {}
+
+    loaded = load_backend_entry_points(  # type: ignore[arg-type]
+        registered.setdefault,
+        register_provider=providers.setdefault,
+    )
+
+    assert loaded[0].plugin_id == "hloc"
+    assert loaded[0].skipped is True
+    assert loaded[0].load_error is None
+    assert not registered
+    assert not providers
+
+
+def test_entry_point_loader_registrar_accepts_providers_kwarg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Entry-point plugins can declare provider aliases through the
+    ``registrar`` callback rather than only through the manifest."""
+    manifest_obj = get_manifest("hloc")
+
+    class PluginObject:
+        manifest = manifest_obj
+
+        @staticmethod
+        def register(registrar) -> None:  # type: ignore[no-untyped-def]
+            registrar(
+                "explicit_backend",
+                lambda: object(),
+                providers=["explicit.provider"],
+            )
+
+    class FakeEntryPoint:
+        name = "explicit_entry"
+        value = "fake.module:plugin"
+        dist = None
+
+        def load(self) -> PluginObject:
+            return PluginObject()
+
+    class FakeEntryPoints(list[FakeEntryPoint]):
+        def select(self, *, group: str) -> list[FakeEntryPoint]:
+            return list(self)
+
+    import sfm_hub.discovery as discovery
+
+    monkeypatch.setattr(
+        discovery.metadata, "entry_points", lambda: FakeEntryPoints([FakeEntryPoint()])
+    )
+    registered: dict[str, object] = {}
+    providers: dict[str, object] = {}
+
+    load_backend_entry_points(  # type: ignore[arg-type]
+        registered.setdefault,
+        register_provider=providers.setdefault,
+    )
+
+    # Callback-declared provider wins; manifest providers (hloc) for the same
+    # single backend still register via the manifest fallback path.
+    assert "explicit.provider" in providers
+    assert providers["explicit.provider"] is registered["explicit_backend"]
+    assert "hloc" in providers
+
+
+def test_entry_point_loader_logs_unmatched_manifest_provider(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When a plugin registers >1 backend and the manifest lists provider
+    ids that don't match any registered backend name, sfm_hub warns
+    instead of silently dropping the alias."""
+    manifest_obj = get_manifest("hloc")
+
+    class PluginObject:
+        manifest = manifest_obj
+
+        @staticmethod
+        def register(registrar) -> None:  # type: ignore[no-untyped-def]
+            registrar("alpha", lambda: object())
+            registrar("beta", lambda: object())
+
+    class FakeEntryPoint:
+        name = "multi_entry"
+        value = "fake.module:plugin"
+        dist = None
+
+        def load(self) -> PluginObject:
+            return PluginObject()
+
+    class FakeEntryPoints(list[FakeEntryPoint]):
+        def select(self, *, group: str) -> list[FakeEntryPoint]:
+            return list(self)
+
+    import sfm_hub.discovery as discovery
+
+    monkeypatch.setattr(
+        discovery.metadata, "entry_points", lambda: FakeEntryPoints([FakeEntryPoint()])
+    )
+    registered: dict[str, object] = {}
+    providers: dict[str, object] = {}
+
+    with caplog.at_level("WARNING", logger="sfm_hub.discovery"):
+        load_backend_entry_points(  # type: ignore[arg-type]
+            registered.setdefault,
+            register_provider=providers.setdefault,
+        )
+
+    assert {"alpha", "beta"} <= registered.keys()
+    # Manifest provider id "hloc" matches neither "alpha" nor "beta" so it
+    # must NOT be silently aliased to one of them, and a warning must fire.
+    assert "hloc" not in providers
+    assert any("unmatched_manifest_provider" in str(record.msg) for record in caplog.records)
+
+
+def test_plugin_service_enable_records_entry_point_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """enable_plugin on a discovered-but-not-yet-installed entry-point
+    plugin records a manual install instead of raising."""
+    from app.services import plugin_service
+
+    monkeypatch.setattr(
+        "app.services.plugin_service.discovered_plugin_ids",
+        lambda: {"hloc"},
+    )
+
+    detail = plugin_service.enable_plugin("hloc")
+
+    state = load_state()
+    assert "hloc" in state.installed
+    assert state.installed["hloc"].method == "entry_point"
+    assert state.installed["hloc"].enabled is True
+    assert detail["enabled"] is True
+
+
+def test_plugin_service_disable_records_entry_point_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symmetric to enable: disable on a discovered-but-not-yet-installed
+    entry-point plugin records the manual install (disabled)."""
+    from app.services import plugin_service
+
+    monkeypatch.setattr(
+        "app.services.plugin_service.discovered_plugin_ids",
+        lambda: {"hloc"},
+    )
+
+    plugin_service.disable_plugin("hloc")
+
+    state = load_state()
+    assert "hloc" in state.installed
+    assert state.installed["hloc"].enabled is False

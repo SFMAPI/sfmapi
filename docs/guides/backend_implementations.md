@@ -123,13 +123,14 @@ class VendorCliBackend:
 ```python
 from sfmapi.runtime import register_backend
 
-register_backend("my_backend", MyBackend)
+register_backend("my_backend", MyBackend, providers=["my_backend"])
 ```
 
 Then either:
 
 - set the env var: `SFMAPI_BACKEND=my_backend`, or
-- pass `name=` to `get_backend("my_backend")` for explicit selection.
+- pass `name=` to `get_backend("my_backend")` for explicit selection, or
+- let sfm_hub resolve a stage `provider` to the registered provider alias.
 
 A common pattern is to register from the package's `__init__.py` so
 that `import my_backend` is the only thing the operator needs:
@@ -139,8 +140,29 @@ that `import my_backend` is the only thing the operator needs:
 from sfmapi.runtime import register_backend
 from .backend import MyBackend
 
-register_backend("my_backend", MyBackend)
+register_backend("my_backend", MyBackend, providers=["my_backend"])
 ```
+
+### Entry-point plugins
+
+When the backend ships as a Python entry point under
+`[project.entry-points."sfmapi.backends"]`, sfm_hub loads it during
+lifespan startup and hands the plugin a `registrar(name, factory,
+*, providers=None)` callable. Pass provider aliases directly:
+
+```python
+# my_backend/plugin.py
+from .backend import MyBackend
+
+def register(registrar):
+    registrar("my_backend", MyBackend, providers=["my_provider"])
+```
+
+The plugin's `PluginManifest.providers` list is consulted only as a
+fallback for entry points that don't pass `providers=` through the
+callback. When the manifest lists provider ids that don't match any
+backend the plugin registered, sfm_hub logs a warning and skips
+those provider aliases.
 
 ## Reference backend packages
 
@@ -224,6 +246,27 @@ share a portable capability, such as COLMAP SIFT and hloc learned
 features. Keep the capability portable (`features.extract.sift`,
 `pairs.retrieval`, `matchers.superglue`); put backend-native tool
 names in backend actions instead.
+
+Provider resolution is execution-native for portable worker stages. If
+validation resolves `provider="hloc"`, the worker calls the backend
+factory registered for the `hloc` provider alias instead of blindly
+using `SFMAPI_BACKEND`. Single-backend deployments can ignore provider
+aliases and continue using `SFMAPI_BACKEND`.
+
+The same provider selector is available on backend extension surfaces:
+`GET /v1/backend/actions?provider=hloc`,
+`GET /v1/backend/config-schemas?provider=colmap_cli`,
+`GET /v1/backend/artifact-contracts?provider=hloc`,
+`POST /v1/backend/actions/{action_id}:run` with body
+`{"provider": "..."}`, and artifact conversion requests with
+`"provider": "..."`. MCP tools expose the same optional `provider`
+argument for read-only action and conversion discovery.
+
+Pair selection and per-pair matching currently execute inside one
+`backend.match(...)` call. `pairs.provider` and `matcher.provider`
+therefore must resolve to the same backend for a normal match stage.
+To mix providers, materialize one stage as an artifact and pass it into
+the next stage through `input_artifacts`.
 
 Stage specs also expose `backend_options`. Use this for
 provider-specific knobs that are not part of the portable sfmapi
@@ -620,7 +663,7 @@ uv run pytest -m "contract" --backend=my_backend
 ```
 
 …where the `--backend` arg is whatever your test harness wires
-through `sfmapi.runtime.register_backend()` in a conftest. The contract tests
-assert the protocol shape, not engine semantics — they catch
-"forgot to add the new method when sfmapi added one to the
-Protocol" regressions.
+through ``sfmapi.runtime.register_backend("name", MyBackend, providers=[...])``
+in a conftest. The contract tests assert the protocol shape, not
+engine semantics — they catch "forgot to add the new method when
+sfmapi added one to the Protocol" regressions.

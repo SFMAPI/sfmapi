@@ -18,7 +18,6 @@ import shutil
 from pathlib import Path
 
 from app.adapters.backend import require_backend_method
-from app.adapters.registry import get_backend
 from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.core.paths import Paths
@@ -26,6 +25,7 @@ from app.db.models import Task
 from app.storage.vlad import write_index as _write_vlad_index
 from app.workers._materialize import resolve_image_path
 from app.workers._task_io import read_state
+from app.workers.backend_resolver import backend_for_stage
 from app.workers.tasks._registry import task_handler
 
 
@@ -57,8 +57,9 @@ def run(task: Task) -> dict:
     if not image_paths_by_id:
         raise ValidationError("vlad_index: no images could be materialized for VLAD build")
 
+    backend = backend_for_stage(spec)
     build_vlad_index = require_backend_method(
-        get_backend(),
+        backend,
         "build_vlad_index",
         capability="similarity.vlad",
     )

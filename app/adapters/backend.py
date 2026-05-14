@@ -222,6 +222,72 @@ class RetrievalBackend(Backend, Protocol):
 
 
 @runtime_checkable
+class VocabTreeBackend(Backend, Protocol):
+    """Retrieval-index construction (capability ``index.vocab_tree``)."""
+
+    def build_vocab_tree(
+        self,
+        *,
+        database_path: Path,
+        output_path: Path,
+        spec: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build a reusable vocabulary-tree retrieval index from a feature DB."""
+
+
+@runtime_checkable
+class GeometryBackend(Backend, Protocol):
+    """Standalone two-view geometry estimation (capability ``geometry.two_view``).
+
+    Distinct from ``FeatureBackend.verify_matches`` (which filters an
+    existing match set in place): this estimates relative geometry —
+    essential / fundamental / homography matrices and relative pose —
+    for an explicit set of image pairs.
+    """
+
+    def estimate_two_view_geometry(
+        self,
+        *,
+        database_path: Path,
+        spec: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Estimate two-view geometry (E/F/H + relative pose) for image pairs."""
+
+
+@runtime_checkable
+class UndistortBackend(Backend, Protocol):
+    """Image undistortion (capability ``image.undistort``).
+
+    A portable sparse-SfM post-process: rewrite images to a distortion-free
+    camera model and emit the adjusted intrinsics. NOT dense MVS — though
+    it is commonly the first step of a dense pipeline.
+    """
+
+    def undistort_images(
+        self,
+        *,
+        model_path: Path,
+        image_root: Path,
+        output_path: Path,
+        spec: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Undistort images + emit adjusted intrinsics into ``output_path``."""
+
+
+@runtime_checkable
+class RigBackend(Backend, Protocol):
+    """Multi-camera rig declaration / calibration (capability ``rigs.configure``)."""
+
+    def configure_rig(
+        self,
+        *,
+        database_path: Path,
+        spec: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Declare or calibrate a multi-camera rig over a feature database."""
+
+
+@runtime_checkable
 class ArtifactConversionBackend(Backend, Protocol):
     """Convert one stage artifact format into another."""
 
@@ -268,6 +334,20 @@ class TransformBackend(Backend, Protocol):
     ) -> dict[str, Any]:
         """Apply a Sim(3) similarity transform to a sparse model."""
 
+    def align_reconstruction(
+        self,
+        *,
+        model_path: Path,
+        output_path: Path,
+        spec: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Estimate + apply georegistration from GPS / geo-tags / control points.
+
+        Capability ``georegister.gps``. Unlike :meth:`apply_sim3` (which
+        applies a caller-supplied transform), this *solves* the transform
+        from georeferenced inputs declared in ``spec``.
+        """
+
 
 @runtime_checkable
 class ReconstructionReaderBackend(Backend, Protocol):
@@ -295,14 +375,18 @@ class ReconstructionMergeBackend(Backend, Protocol):
 class SfmBackend(
     FeatureBackend,
     ObservationBackend,
+    GeometryBackend,
     MappingBackend,
     RefinementBackend,
     ExportBackend,
     SphericalBackend,
     RetrievalBackend,
+    VocabTreeBackend,
     LocalizationBackend,
     BatchLocalizationBackend,
     TransformBackend,
+    UndistortBackend,
+    RigBackend,
     ReconstructionReaderBackend,
     ReconstructionMergeBackend,
     ArtifactConversionBackend,
@@ -352,6 +436,7 @@ __all__ = [
     "BatchLocalizationBackend",
     "ExportBackend",
     "FeatureBackend",
+    "GeometryBackend",
     "LocalizationBackend",
     "MappingBackend",
     "ObservationBackend",
@@ -360,9 +445,12 @@ __all__ = [
     "ReconstructionReaderBackend",
     "RefinementBackend",
     "RetrievalBackend",
+    "RigBackend",
     "SfmBackend",
     "SphericalBackend",
     "TransformBackend",
+    "UndistortBackend",
+    "VocabTreeBackend",
     "has_backend_method",
     "require_backend_method",
 ]

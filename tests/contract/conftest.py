@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,49 @@ from httpx import ASGITransport, AsyncClient
 from app.core.config import Settings, reset_settings_for_tests
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
+_ULID_RE = re.compile(r"\b[0-9A-HJKMNP-TV-Z]{26}\b")
+_TIMESTAMP_KEYS = {
+    "created_at",
+    "updated_at",
+    "expires_at",
+    "started_at",
+    "finished_at",
+    "lease_expires_at",
+    "ts",
+}
+_ID_KIND_BY_KEY = {
+    "artifact_id": "artifact",
+    "cache_key": "cache",
+    "dataset_id": "dataset",
+    "image_id": "image",
+    "job_id": "job",
+    "mask_id": "mask",
+    "maskset_id": "maskset",
+    "project_id": "project",
+    "recon_id": "recon",
+    "rv_id": "runtime",
+    "source_id": "source",
+    "submodel_id": "submodel",
+    "task_id": "task",
+    "upload_id": "upload",
+}
+_ID_KIND_BASE = {
+    "artifact": 1_000,
+    "cache": 2_000,
+    "dataset": 3_000,
+    "generic": 4_000,
+    "image": 5_000,
+    "job": 6_000,
+    "mask": 7_000,
+    "maskset": 8_000,
+    "project": 9_000,
+    "recon": 10_000,
+    "runtime": 11_000,
+    "source": 12_000,
+    "submodel": 13_000,
+    "task": 14_000,
+    "upload": 15_000,
+}
 
 
 def _clear_inherited_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -81,11 +125,122 @@ def load_fixture(name: str) -> Any:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+def _id_kind_for_key(key: str | None) -> str | None:
+    if key is None:
+        return None
+    if key.endswith("_ids"):
+        key = f"{key[:-4]}_id"
+    return _ID_KIND_BY_KEY.get(key)
+
+
+def _placeholder_id(kind: str, ordinal: int) -> str:
+    base = _ID_KIND_BASE.get(kind, _ID_KIND_BASE["generic"])
+    return f"01H{base + ordinal:023d}"
+
+
+def _assign_id(
+    value: str,
+    *,
+    kind: str,
+    replacements: dict[str, str],
+    counters: dict[str, int],
+) -> None:
+    if value in replacements:
+        return
+    counters[kind] = counters.get(kind, 0) + 1
+    replacements[value] = _placeholder_id(kind, counters[kind])
+
+
+def _collect_semantic_ids(
+    value: Any,
+    *,
+    key: str | None,
+    replacements: dict[str, str],
+    counters: dict[str, int],
+) -> None:
+    if isinstance(value, dict):
+        for child_key, child_value in value.items():
+            _collect_semantic_ids(
+                child_value,
+                key=child_key,
+                replacements=replacements,
+                counters=counters,
+            )
+        return
+    if isinstance(value, list):
+        for item in value:
+            _collect_semantic_ids(
+                item,
+                key=key,
+                replacements=replacements,
+                counters=counters,
+            )
+        return
+    if not isinstance(value, str):
+        return
+    kind = _id_kind_for_key(key)
+    if kind and _ULID_RE.fullmatch(value):
+        _assign_id(value, kind=kind, replacements=replacements, counters=counters)
+
+
+def _normalize_fixture_value(
+    value: Any,
+    *,
+    key: str | None,
+    replacements: dict[str, str],
+    counters: dict[str, int],
+) -> Any:
+    if isinstance(value, dict):
+        return {
+            child_key: _normalize_fixture_value(
+                child_value,
+                key=child_key,
+                replacements=replacements,
+                counters=counters,
+            )
+            for child_key, child_value in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _normalize_fixture_value(
+                item,
+                key=key,
+                replacements=replacements,
+                counters=counters,
+            )
+            for item in value
+        ]
+    if not isinstance(value, str):
+        return value
+    if key in _TIMESTAMP_KEYS:
+        return "2026-01-01T00:00:00Z"
+
+    def replace_id(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        if raw not in replacements:
+            _assign_id(raw, kind="generic", replacements=replacements, counters=counters)
+        return replacements[raw]
+
+    return _ULID_RE.sub(replace_id, value)
+
+
+def normalize_fixture(body: Any) -> Any:
+    """Replace volatile IDs and audit timestamps with stable fixture values."""
+    replacements: dict[str, str] = {}
+    counters: dict[str, int] = {}
+    _collect_semantic_ids(body, key=None, replacements=replacements, counters=counters)
+    return _normalize_fixture_value(body, key=None, replacements=replacements, counters=counters)
+
+
 def save_fixture(name: str, body: Any) -> None:
-    """Save a JSON-shape body to ``fixtures/<name>.json``. Idempotent —
-    only writes if the content differs (or refresh is forced)."""
+    """Save a JSON body to ``fixtures/<name>.json``.
+
+    Contract tests hit real routes, which allocate fresh IDs and timestamps.
+    Normalize those volatile fields so checked-in fixtures represent wire
+    shape, not the clock tick from the last local test run.
+    """
     p = fixture_path(name)
-    payload = json.dumps(body, indent=2, sort_keys=True) + "\n"
+    payload = json.dumps(normalize_fixture(body), indent=2, sort_keys=True) + "\n"
     if p.is_file() and not os.environ.get("TESTS_CONTRACT_REFRESH"):
         existing = p.read_text(encoding="utf-8")
         if existing == payload:

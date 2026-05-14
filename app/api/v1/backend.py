@@ -29,9 +29,14 @@ router = APIRouter(prefix="/backend", tags=["backend"])
 
 
 @router.get("", response_model=BackendOut)
-async def get_backend() -> BackendOut:
+async def get_backend(
+    provider: str | None = Query(
+        None,
+        description="Optional provider id to inspect instead of the process default backend.",
+    ),
+) -> BackendOut:
     """Read the active backend identity and extension-action links."""
-    return BackendOut.model_validate(backend_action_service.backend_summary())
+    return BackendOut.model_validate(backend_action_service.backend_summary(provider=provider))
 
 
 @router.get("/actions", response_model=BackendActionListPage)
@@ -42,6 +47,7 @@ async def list_actions(
         False,
         description="Include each action's input/output schema in the list response.",
     ),
+    provider: str | None = Query(None, description="Optional provider id to inspect."),
 ) -> BackendActionListPage:
     """List backend-native extension actions.
 
@@ -54,6 +60,7 @@ async def list_actions(
         page_size=page_size,
         page_token=page_token,
         include_schemas=include_schemas,
+        provider=provider,
     )
     return BackendActionListPage(
         items=[BackendActionOut.model_validate(row) for row in rows],
@@ -69,6 +76,7 @@ async def list_config_schemas(
         True,
         description="Include JSON Schemas for each backend_options object.",
     ),
+    provider: str | None = Query(None, description="Optional provider id to inspect."),
 ) -> BackendConfigSchemaListPage:
     """List backend-specific option schemas for portable sfmapi stages.
 
@@ -80,6 +88,7 @@ async def list_config_schemas(
         page_size=page_size,
         page_token=page_token,
         include_schemas=include_schemas,
+        provider=provider,
     )
     return BackendConfigSchemaListPage(
         items=[BackendConfigSchemaOut.model_validate(row) for row in rows],
@@ -91,11 +100,13 @@ async def list_config_schemas(
 async def list_artifact_contracts(
     page_token: str | None = Query(None),
     page_size: int = Query(50, ge=1, le=500),
+    provider: str | None = Query(None, description="Optional provider id to inspect."),
 ) -> BackendArtifactContractListPage:
     """List artifact kinds accepted and emitted by backend portable stages."""
     rows, next_page_token = backend_action_service.list_artifact_contracts(
         page_size=page_size,
         page_token=page_token,
+        provider=provider,
     )
     return BackendArtifactContractListPage(
         items=[BackendArtifactContractOut.model_validate(row) for row in rows],
@@ -113,7 +124,7 @@ async def validate_action(
 ) -> BackendActionValidateResponse:
     """Validate backend action inputs without creating a job."""
     return BackendActionValidateResponse.model_validate(
-        backend_action_service.validate_action(action_id, body.inputs)
+        backend_action_service.validate_action(action_id, body.inputs, provider=body.provider)
     )
 
 
@@ -140,6 +151,7 @@ async def run_action(
         project_id=body.project_id,
         action_id=action_id,
         inputs=body.inputs,
+        provider=body.provider,
     )
     return accepted_response(
         JobAcceptedResponse(
@@ -148,29 +160,41 @@ async def run_action(
             project_id=body.project_id,
             action_id=action_id,
             backend=backend,
+            provider=body.provider,
         )
     )
 
 
 @router.get("/actions/{action_id}", response_model=BackendActionOut)
-async def get_action(action_id: str) -> BackendActionOut:
+async def get_action(
+    action_id: str,
+    provider: str | None = Query(None, description="Optional provider id to inspect."),
+) -> BackendActionOut:
     """Read one backend action descriptor including schemas."""
-    return BackendActionOut.model_validate(backend_action_service.get_action(action_id))
+    return BackendActionOut.model_validate(
+        backend_action_service.get_action(action_id, provider=provider)
+    )
 
 
 @router.get("/config-schemas/{config_id}", response_model=BackendConfigSchemaOut)
-async def get_config_schema(config_id: str) -> BackendConfigSchemaOut:
+async def get_config_schema(
+    config_id: str,
+    provider: str | None = Query(None, description="Optional provider id to inspect."),
+) -> BackendConfigSchemaOut:
     """Read one backend-specific option schema."""
     return BackendConfigSchemaOut.model_validate(
-        backend_action_service.get_config_schema(config_id)
+        backend_action_service.get_config_schema(config_id, provider=provider)
     )
 
 
 @router.get("/artifact-contracts/{contract_id}", response_model=BackendArtifactContractOut)
-async def get_artifact_contract(contract_id: str) -> BackendArtifactContractOut:
+async def get_artifact_contract(
+    contract_id: str,
+    provider: str | None = Query(None, description="Optional provider id to inspect."),
+) -> BackendArtifactContractOut:
     """Read one backend artifact input/output contract."""
     return BackendArtifactContractOut.model_validate(
-        backend_action_service.get_artifact_contract(contract_id)
+        backend_action_service.get_artifact_contract(contract_id, provider=provider)
     )
 
 

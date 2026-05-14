@@ -104,6 +104,21 @@ class StubBackend:
     def apply_sim3(self, **_: Any) -> dict:
         raise CapabilityUnavailableError(capability="georegister.sim3")
 
+    def align_reconstruction(self, **_: Any) -> dict:
+        raise CapabilityUnavailableError(capability="georegister.gps")
+
+    def estimate_two_view_geometry(self, **_: Any) -> dict:
+        raise CapabilityUnavailableError(capability="geometry.two_view")
+
+    def undistort_images(self, **_: Any) -> dict:
+        raise CapabilityUnavailableError(capability="image.undistort")
+
+    def build_vocab_tree(self, **_: Any) -> dict:
+        raise CapabilityUnavailableError(capability="index.vocab_tree")
+
+    def configure_rig(self, **_: Any) -> dict:
+        raise CapabilityUnavailableError(capability="rigs.configure")
+
     def merge_reconstructions(self, **_: Any) -> dict:
         raise CapabilityUnavailableError(capability="recon.merge")
 

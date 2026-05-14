@@ -112,6 +112,13 @@ class ProjectionJobRequest(BaseModel):
     cubemap: CubemapProjectionSpec | None = None
     equirectangular: EquirectangularProjectionSpec | None = None
     perspective: PerspectiveProjectionSpec | None = None
+    provider: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+        description="Optional provider id to execute this projection job.",
+    )
 
     @model_validator(mode="after")
     def _fill_default_spec(self) -> ProjectionJobRequest:
@@ -124,14 +131,23 @@ class ProjectionJobRequest(BaseModel):
         return self
 
     def operation_spec(self) -> dict[str, object]:
-        """Return the concrete spec for ``operation`` as JSON-ready data."""
+        """Return the concrete spec for ``operation`` as JSON-ready data.
+
+        The top-level ``provider`` selector is stamped onto the operation
+        spec so workers reading ``backend_for_stage(operation_spec)`` route
+        correctly without needing the surrounding envelope.
+        """
         if self.operation == "equirectangular_to_cubemap":
-            return self.cubemap.model_dump(mode="json") if self.cubemap else {}
-        if self.operation == "cubemap_to_equirectangular":
-            return self.equirectangular.model_dump(mode="json") if self.equirectangular else {}
-        if self.operation == "equirectangular_to_perspective":
-            return self.perspective.model_dump(mode="json") if self.perspective else {}
-        raise ValueError(f"unsupported projection operation: {self.operation}")
+            base = self.cubemap.model_dump(mode="json") if self.cubemap else {}
+        elif self.operation == "cubemap_to_equirectangular":
+            base = self.equirectangular.model_dump(mode="json") if self.equirectangular else {}
+        elif self.operation == "equirectangular_to_perspective":
+            base = self.perspective.model_dump(mode="json") if self.perspective else {}
+        else:
+            raise ValueError(f"unsupported projection operation: {self.operation}")
+        if self.provider is not None:
+            base["provider"] = self.provider
+        return base
 
 
 class CubemapProjectionRequest(ProjectionJobRequest):

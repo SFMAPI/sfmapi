@@ -52,6 +52,14 @@ uses `SFMAPI_RUNTIME_VERSION_ID` as an extra cache-key salt; backend
 packages usually compute this value from their own engine, CUDA, and
 build metadata.
 
+When backend plugins are installed through `sfmapi plugins`, local hub
+state is stored in `~/.config/sfmapi/plugins.json` by default. Set
+`SFMAPI_PLUGIN_STATE` to a shared path when several web or worker
+processes must agree on enabled plugins and routing profiles. Set
+`SFMAPI_AUTO_LOAD_BACKEND_PLUGINS=true` in worker/operator processes
+to load installed `[project.entry-points."sfmapi.backends"]` and
+register provider aliases for execution.
+
 ## Notable knobs
 
 | Env var | Default | What it does |
@@ -63,6 +71,8 @@ build metadata.
 | `SFMAPI_UPLOAD_CHUNK_MAX_BYTES` | 8 MiB | Max single PATCH chunk |
 | `SFMAPI_UPLOAD_EXPIRY_HOURS` | 24 | Open uploads GC'd after this |
 | `SFMAPI_BACKEND` | unset | Registered backend name to select at startup |
+| `SFMAPI_AUTO_LOAD_BACKEND_PLUGINS` | false | Load installed backend plugin entry points during API startup |
+| `SFMAPI_PLUGIN_STATE` | `~/.config/sfmapi/plugins.json` | Local plugin enablement and routing-profile state file |
 | `SFMAPI_RUNTIME_VERSION_ID` | `unknown` | Extra cache-key salt exposed in `/v1/version` |
 | `SFMAPI_PROFILE_REQUESTS` | false | Enable per-request cProfile instrumentation |
 | `SFMAPI_PROFILE_MIN_MS` | 0 | Only log profiles for requests at/above this duration |

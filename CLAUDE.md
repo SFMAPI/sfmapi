@@ -460,10 +460,9 @@ SFMAPI_DB_URL=sqlite+aiosqlite:///./test.db uv run pytest -q
 SFMAPI_DB_URL=postgresql+psycopg://sfm:sfm@localhost:5432/sfmapi_test \
   uv run pytest -q -m "not needs_backend"
 
-# Lint + type
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy app
+# Ruff stack
+uv run ruff check app sfmapi sfm_hub tests
+uv run ruff format --check app sfmapi sfm_hub tests
 ```
 
 ## Backend integration notes

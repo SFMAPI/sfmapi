@@ -10,18 +10,18 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.adapters.backend import require_backend_method
-from app.adapters.registry import get_backend
 from app.core.errors import ValidationError
 from app.db.models import Task
 from app.storage.snapshot_emit import emit_snapshot_files
 from app.storage.snapshots import SnapshotStore
-from app.workers._task_io import read_inputs
+from app.workers._task_io import read_state
+from app.workers.backend_resolver import backend_for_stage
 from app.workers.tasks._registry import task_handler
 
 
 @task_handler("to_cubemap")
 def run(task: Task) -> dict:
-    inputs = read_inputs(task)
+    inputs, spec = read_state(task)
     rec_root = Path(inputs["reconstruction_root"])
     sparse_dir = Path(inputs["sparse_dir"])
     image_root = Path(inputs["image_root"])
@@ -32,7 +32,7 @@ def run(task: Task) -> dict:
 
     out_dir = rec_root / "_cubemap" / task.task_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    backend = get_backend()
+    backend = backend_for_stage(spec)
     convert_spherical_to_cubemap = require_backend_method(
         backend,
         "convert_spherical_to_cubemap",

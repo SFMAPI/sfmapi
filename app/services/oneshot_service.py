@@ -28,6 +28,7 @@ from app.schemas.api.oneshot import (
     OneShotRuntimeInfo,
 )
 from app.schemas.pipeline_spec import FeaturesSpec
+from sfm_hub.routing import ensure_provider_enabled
 
 # Marker the route handler can map to a 415 / 422 response. Real
 # pycolmap accepts JPEG / PNG / TIFF / BMP / WebP; we only allow
@@ -40,6 +41,15 @@ _ACCEPTED_CONTENT_TYPES = {
     "image/webp",
     "application/octet-stream",  # generic fallback when client doesn't set CT
 }
+
+
+def _resolve_backend(provider: str | None = None) -> Any:
+    try:
+        if provider is not None:
+            ensure_provider_enabled(provider)
+        return get_backend(provider=provider)
+    except KeyError as exc:
+        raise ValidationError(str(exc)) from exc
 
 
 def extract_features_oneshot(
@@ -68,7 +78,7 @@ def extract_features_oneshot(
         )
 
     started = time.perf_counter()
-    backend = get_backend()
+    backend = _resolve_backend(spec.provider)
 
     metadata = read_image_metadata(image_bytes, content_type=content_type)
 
@@ -111,7 +121,11 @@ def extract_features_oneshot(
         except Exception as e:
             raise ValidationError(f"oneshot/features: backend failed to extract: {e}") from e
 
-        keypoints, descriptors_b64, descriptor_dim = _read_back_keypoints(db_path, image_file.name)
+        keypoints, descriptors_b64, descriptor_dim = _read_back_keypoints(
+            db_path,
+            image_file.name,
+            backend=backend,
+        )
 
     runtime_ms = int((time.perf_counter() - started) * 1000)
     return OneShotFeaturesResponse(
@@ -162,8 +176,13 @@ def _sift_options_from_spec(spec: FeaturesSpec) -> dict[str, Any]:
     return out
 
 
-def _read_back_keypoints(db_path: Path, image_name: str) -> tuple[list[list[float]], str, int]:
-    """Read keypoints + descriptors back via the registered backend.
+def _read_back_keypoints(
+    db_path: Path,
+    image_name: str,
+    *,
+    backend: Any,
+) -> tuple[list[list[float]], str, int]:
+    """Read keypoints + descriptors back via the supplied backend.
     Returns:
 
       - ``keypoints``: list of [x, y, scale, angle] rows.
@@ -173,9 +192,10 @@ def _read_back_keypoints(db_path: Path, image_name: str) -> tuple[list[list[floa
     The oneshot path writes one image into ``db_path``; image_id is 1.
     Heavy-import isolation: this routes through the
     :class:`ObservationBackend.read_keypoints` Protocol method so service
-    code never touches an engine library directly.
+    code never touches an engine library directly. ``backend`` is required
+    — the caller must pass the same backend that performed extraction so
+    a single oneshot call cannot silently split across two engines.
     """
-    backend = get_backend()
     try:
         read_keypoints = require_backend_method(
             backend,
@@ -235,7 +255,7 @@ def localize_oneshot(
         )
 
     started = time.perf_counter()
-    backend = get_backend()
+    backend = _resolve_backend(spec.provider)
     metadata = read_image_metadata(image_bytes, content_type=content_type)
 
     with tempfile.TemporaryDirectory(prefix="sfmapi-oneshot-loc-") as tmp:

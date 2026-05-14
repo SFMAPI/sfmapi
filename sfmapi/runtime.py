@@ -9,7 +9,13 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
 from app.adapters.backend import Backend
-from app.adapters.registry import get_backend, list_backends, register_backend
+from app.adapters.registry import (
+    get_backend,
+    list_backend_providers,
+    list_backends,
+    register_backend,
+    register_backend_provider,
+)
 from sfm_hub.discovery import load_backend_entry_points
 
 BackendFactory = Callable[[], Backend]
@@ -30,7 +36,7 @@ def register_plugin(plugin: BackendPlugin) -> None:
 def load_installed_plugins() -> list[Any]:
     """Load installed backend entry points into the process-local registry."""
 
-    return load_backend_entry_points(register_backend)
+    return load_backend_entry_points(register_backend, register_provider=register_backend_provider)
 
 
 def create_app() -> FastAPI:
@@ -45,8 +51,10 @@ __all__ = [
     "BackendFactory",
     "create_app",
     "get_backend",
+    "list_backend_providers",
     "list_backends",
     "load_installed_plugins",
     "register_backend",
+    "register_backend_provider",
     "register_plugin",
 ]

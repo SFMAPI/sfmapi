@@ -43,13 +43,19 @@ def _mcp(args: argparse.Namespace) -> None:
 
 def _check_backend(args: argparse.Namespace) -> None:
     if args.load_entry_points:
-        from app.adapters.registry import register_backend
+        from app.adapters.registry import register_backend, register_backend_provider
         from sfm_hub.discovery import load_backend_entry_points
 
-        loaded = load_backend_entry_points(register_backend)
+        loaded = load_backend_entry_points(
+            register_backend,
+            register_provider=register_backend_provider,
+        )
         errors = [item for item in loaded if item.load_error]
         for item in errors:
             print(f"Backend plugin load failed: {item.plugin_id}: {item.load_error}")
+        for item in loaded:
+            if item.skipped:
+                print(f"Backend plugin skipped (disabled in hub state): {item.plugin_id}")
         if errors:
             raise SystemExit(1)
     for module in args.import_module:

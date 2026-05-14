@@ -107,14 +107,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         os.environ.setdefault("SFMAPI_BACKEND", "stub")
         log.info("sfmapi.ephemeral_bootstrapped", workspace=str(settings.workspace_root))
     if settings.auto_load_backend_plugins:
-        from app.adapters.registry import register_backend
+        from app.adapters.registry import register_backend, register_backend_provider
         from sfm_hub.discovery import load_backend_entry_points
 
-        loaded = load_backend_entry_points(register_backend)
+        loaded = load_backend_entry_points(
+            register_backend,
+            register_provider=register_backend_provider,
+        )
         failures = [item for item in loaded if item.load_error]
+        skipped = [item for item in loaded if item.skipped]
+        registered = [item for item in loaded if not item.load_error and not item.skipped]
         log.info(
             "sfmapi.plugins_loaded",
             count=len(loaded),
+            registered=len(registered),
+            skipped=len(skipped),
+            skipped_plugin_ids=[item.plugin_id for item in skipped],
             failures=len(failures),
         )
     if settings.warm_capabilities:

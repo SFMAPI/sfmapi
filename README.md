@@ -9,7 +9,7 @@ This repository ships the **wire spec + orchestration shell only** —
 no concrete SfM engine. Backend implementations live in their own
 repositories, satisfy the smallest applicable protocol in
 `sfmapi.backends`, and register at startup via
-`sfmapi.runtime.register_backend("name", Backend)`. A no-op
+`sfmapi.runtime.register_backend("name", Backend, providers=["provider_id"])`. A no-op
 `StubBackend` is bundled for tests and `SFMAPI_EPHEMERAL=true` demos.
 
 Client SDKs now live in the sibling `sfmapi-sdk` repository. This repo owns
@@ -24,7 +24,7 @@ kinds and versioned `sfmapi.*.v1` interchange formats; backend-native
 files stay discoverable through `/v1/backend/artifact-contracts`.
 Artifacts can be validated with `/v1/artifacts/{id}:validate` and
 converted through normal jobs with `/v1/artifacts/{id}:convert` when
-the active backend advertises a conversion path. Existing artifact
+the selected backend advertises a conversion path. Existing artifact
 files can be registered without copying bytes through
 `POST /v1/artifacts:import`.
 
@@ -65,7 +65,14 @@ install execution is dry-run by default and requires
 Installed backend packages should expose
 `[project.entry-points."sfmapi.backends"]`. Set
 `SFMAPI_AUTO_LOAD_BACKEND_PLUGINS=true` only in worker/operator
-processes where importing backend packages is acceptable.
+processes where importing backend packages is acceptable. Loaded
+entry points register provider ids as backend aliases, so a resolved
+stage `provider` selects the backend that executes that task. Plugins
+disabled in local hub state are skipped during entry-point loading.
+Provider-specific discovery uses the same selector:
+`/v1/backend/actions?provider=hloc`,
+`/v1/backend/config-schemas?provider=colmap_cli`, and artifact
+conversion requests may include `"provider": "..."`.
 
 See [docs/](https://sfmapi.github.io/) for the user-facing site,
 [SFMAPI-SPEC.md](./SFMAPI-SPEC.md) for the wire spec, and

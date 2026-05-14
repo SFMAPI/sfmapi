@@ -227,8 +227,11 @@ async def render_cubemap(
         dataset_id=dataset_id,
         face_size=face_size,
         spec=body.operation_spec(),
+        provider=body.provider,
     )
-    return accepted_response(JobAcceptedResponse(job_id=job_id, dataset_id=dataset_id))
+    return accepted_response(
+        JobAcceptedResponse(job_id=job_id, dataset_id=dataset_id, provider=body.provider)
+    )
 
 
 @spherical_router.post(
@@ -249,7 +252,9 @@ async def project_images(
         dataset_id=dataset_id,
         spec=body.model_dump(mode="json"),
     )
-    return accepted_response(JobAcceptedResponse(job_id=job_id, dataset_id=dataset_id))
+    return accepted_response(
+        JobAcceptedResponse(job_id=job_id, dataset_id=dataset_id, provider=body.provider)
+    )
 
 
 @spherical_router.post(
@@ -273,7 +278,9 @@ async def render_equirectangular(
         spec=body.model_dump(mode="json"),
         recipe="render_equirectangular",
     )
-    return accepted_response(JobAcceptedResponse(job_id=job_id, dataset_id=dataset_id))
+    return accepted_response(
+        JobAcceptedResponse(job_id=job_id, dataset_id=dataset_id, provider=body.provider)
+    )
 
 
 @spherical_router.post(
@@ -297,4 +304,6 @@ async def render_perspective(
         spec=body.model_dump(mode="json"),
         recipe="render_perspective",
     )
-    return accepted_response(JobAcceptedResponse(job_id=job_id, dataset_id=dataset_id))
+    return accepted_response(
+        JobAcceptedResponse(job_id=job_id, dataset_id=dataset_id, provider=body.provider)
+    )

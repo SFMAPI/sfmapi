@@ -2,19 +2,29 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import metadata
 from typing import Any
 
 from sfm_hub.models import PluginManifest
+from sfm_hub.state import load_state
 
 ENTRY_POINT_GROUP = "sfmapi.backends"
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class DiscoveredPlugin:
-    """One installed Python entry point in the sfmapi backend group."""
+    """One installed Python entry point in the sfmapi backend group.
+
+    ``load_error`` is set when import / manifest parsing fails. ``skipped``
+    is set when the plugin loaded but hub state has it disabled, so callers
+    can distinguish "did not load because broken" from "did not load because
+    operator turned it off."
+    """
 
     plugin_id: str
     entry_point: str
@@ -22,6 +32,7 @@ class DiscoveredPlugin:
     version: str | None = None
     manifest: PluginManifest | None = None
     load_error: str | None = None
+    skipped: bool = False
 
 
 def _entry_points() -> list[metadata.EntryPoint]:
@@ -111,34 +122,105 @@ def discovered_manifests() -> list[PluginManifest]:
 
 
 def load_backend_entry_points(
-    register_backend: Callable[[str, Callable[[], Any]], None],
+    register_backend: Callable[..., None],
+    *,
+    register_provider: Callable[[str, Callable[[], Any]], None] | None = None,
+    enabled_only: bool = True,
 ) -> list[DiscoveredPlugin]:
     """Load installed backend entry points and register backend factories.
 
     Supported plugin object shapes:
 
-    - `register(register_backend)` or `register_backend(register_backend)`;
-    - `backend_factory` plus optional `backend_name`;
+    - ``register(registrar)`` or ``register_backend(registrar)``: the plugin
+      receives a ``registrar(name, factory, *, providers=None)`` callable.
+      When ``providers=[...]`` is passed, those provider ids are routed
+      directly to the registered factory, bypassing the manifest path.
+    - ``backend_factory`` plus optional ``backend_name``;
     - a plain callable factory, using the entry-point name as backend id.
+
+    Provider aliasing falls back to the plugin manifest's ``provider_ids()``
+    when the ``register()`` callback didn't pass ``providers=``. Manifest
+    ids that match no registered backend name in the multi-backend case
+    are skipped with a warning.
     """
 
     loaded: list[DiscoveredPlugin] = []
+    state = load_state()
     for ep in sorted(_entry_points(), key=lambda item: item.name):
         try:
             obj = ep.load()
             manifest = _manifest_from_loaded(obj)
+            plugin_id = manifest.plugin_id if manifest is not None else ep.name
+            state_row = state.installed.get(plugin_id)
+            if enabled_only and state_row is not None and not state_row.enabled:
+                loaded.append(
+                    DiscoveredPlugin(
+                        plugin_id=plugin_id,
+                        entry_point=ep.value,
+                        distribution=_dist_name(ep),
+                        version=_dist_version(ep),
+                        manifest=manifest,
+                        skipped=True,
+                    )
+                )
+                continue
+
+            registered: list[tuple[str, Callable[[], Any]]] = []
+            explicit_providers: dict[str, Callable[[], Any]] = {}
+
+            def registrar(
+                name: str,
+                factory: Callable[[], Any],
+                *,
+                providers: list[str] | tuple[str, ...] | None = None,
+                _registered: list[tuple[str, Callable[[], Any]]] = registered,
+                _explicit: dict[str, Callable[[], Any]] = explicit_providers,
+            ) -> None:
+                register_backend(name, factory)
+                _registered.append((name, factory))
+                for provider_id in providers or ():
+                    _explicit[str(provider_id)] = factory
+
             register = getattr(obj, "register", None) or getattr(obj, "register_backend", None)
             if callable(register):
-                register(register_backend)
+                register(registrar)
             else:
                 factory = getattr(obj, "backend_factory", None)
                 if factory is None and callable(obj):
                     factory = obj
                 if callable(factory):
-                    register_backend(str(getattr(obj, "backend_name", ep.name)), factory)
+                    registrar(str(getattr(obj, "backend_name", ep.name)), factory)
+
+            if register_provider is not None:
+                for provider_id, factory in explicit_providers.items():
+                    register_provider(provider_id, factory)
+                manifest_provider_ids = manifest.provider_ids() if manifest is not None else []
+                manifest_provider_ids = [
+                    pid for pid in manifest_provider_ids if pid not in explicit_providers
+                ]
+                registered_by_name = {name: factory for name, factory in registered}
+                if len(registered) == 1:
+                    _, factory = registered[0]
+                    for provider_id in manifest_provider_ids:
+                        register_provider(provider_id, factory)
+                else:
+                    for provider_id in manifest_provider_ids:
+                        factory = registered_by_name.get(provider_id)
+                        if factory is not None:
+                            register_provider(provider_id, factory)
+                        else:
+                            _log.warning(
+                                "sfm_hub.discovery.unmatched_manifest_provider",
+                                extra={
+                                    "plugin_id": plugin_id,
+                                    "entry_point": ep.value,
+                                    "provider_id": provider_id,
+                                    "registered_backends": sorted(registered_by_name),
+                                },
+                            )
             loaded.append(
                 DiscoveredPlugin(
-                    plugin_id=manifest.plugin_id if manifest is not None else ep.name,
+                    plugin_id=plugin_id,
                     entry_point=ep.value,
                     distribution=_dist_name(ep),
                     version=_dist_version(ep),

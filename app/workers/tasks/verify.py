@@ -8,10 +8,10 @@ from typing import Any
 
 from app.adapters.backend import require_backend_method
 from app.adapters.progress import call_with_optional_progress
-from app.adapters.registry import get_backend
 from app.db.models import Task
 from app.storage.two_view_emit import export_two_view_geometries
 from app.workers._task_io import read_state
+from app.workers.backend_resolver import backend_for_stage
 from app.workers.options import stage_options
 from app.workers.progress import get_progress_reporter
 from app.workers.tasks._registry import task_handler
@@ -21,7 +21,7 @@ from app.workers.tasks._registry import task_handler
 def run(task: Task) -> dict[str, Any]:
     inputs, spec = read_state(task)
     db_path = Path(inputs["database_path"])
-    backend = get_backend()
+    backend = backend_for_stage(spec)
     options = stage_options(spec)
     if inputs.get("input_artifacts"):
         options["input_artifacts"] = inputs["input_artifacts"]

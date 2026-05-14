@@ -10,7 +10,7 @@ its ``outputs_ref`` once finished — clients poll
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,8 @@ from app.services import sfm_stage_service
 
 router = APIRouter(prefix="/reconstructions/{recon_id}", tags=["localize"])
 
+_PROVIDER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+
 
 class LocalizationRequest(BaseModel):
     """Request body for ``POST /v1/reconstructions/{rid}/localize``."""
@@ -32,6 +34,13 @@ class LocalizationRequest(BaseModel):
 
     blob_sha: str = Field(..., min_length=64, max_length=64)
     sift: dict | None = None
+    provider: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=_PROVIDER_PATTERN,
+        description="Optional provider id to execute this localize job.",
+    )
 
 
 @router.post(
@@ -49,7 +58,11 @@ async def localize(
 
     The job's task carries a :class:`~app.schemas.api.scene.LocalizationResult`-
     shaped payload in its ``outputs_ref`` once finished."""
-    spec = {"sift": body.sift} if body.sift else {}
+    spec: dict = {}
+    if body.sift:
+        spec["sift"] = body.sift
+    if body.provider is not None:
+        spec["provider"] = body.provider
     job_id, _tasks = await sfm_stage_service.submit_localize(
         session,
         tenant_id=tenant_id,
@@ -57,7 +70,9 @@ async def localize(
         blob_sha=body.blob_sha,
         spec=spec,
     )
-    return accepted_response(JobAcceptedResponse(job_id=job_id, recon_id=recon_id))
+    return accepted_response(
+        JobAcceptedResponse(job_id=job_id, recon_id=recon_id, provider=body.provider)
+    )
 
 
 @router.post(
@@ -68,6 +83,13 @@ async def localize(
 async def georegister(
     recon_id: str,
     body: Sim3,
+    provider: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=_PROVIDER_PATTERN,
+        description="Optional provider id to execute this georegister job.",
+    ),
     tenant_id: str = Depends(current_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
@@ -79,10 +101,10 @@ async def georegister(
     """
     sim3 = body.model_dump(mode="json", by_alias=True)
     job_id, _tasks = await sfm_stage_service.submit_georegister(
-        session, tenant_id=tenant_id, recon_id=recon_id, sim3=sim3
+        session, tenant_id=tenant_id, recon_id=recon_id, sim3=sim3, provider=provider
     )
     return accepted_response(
-        JobAcceptedResponse(job_id=job_id, recon_id=recon_id, applied_sim3=sim3)
+        JobAcceptedResponse(job_id=job_id, recon_id=recon_id, applied_sim3=sim3, provider=provider)
     )
 
 
@@ -93,6 +115,13 @@ async def georegister(
 )
 async def to_cubemap(
     recon_id: str,
+    provider: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=_PROVIDER_PATTERN,
+        description="Optional provider id to execute this conversion.",
+    ),
     tenant_id: str = Depends(current_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
@@ -104,6 +133,8 @@ async def to_cubemap(
     ``frames.json`` carry the cubemap layout.
     """
     job_id, _tasks = await sfm_stage_service.submit_to_cubemap(
-        session, tenant_id=tenant_id, recon_id=recon_id
+        session, tenant_id=tenant_id, recon_id=recon_id, provider=provider
     )
-    return accepted_response(JobAcceptedResponse(job_id=job_id, recon_id=recon_id))
+    return accepted_response(
+        JobAcceptedResponse(job_id=job_id, recon_id=recon_id, provider=provider)
+    )

@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from app.adapters.backend import require_backend_method
-from app.adapters.registry import get_backend
 from app.core.config import get_settings
 from app.core.paths import Paths
 from app.core.projection_engine import project_image_directory
@@ -22,6 +21,7 @@ from app.schemas.api.projections import (
 )
 from app.workers._materialize import materialize_image_set
 from app.workers._task_io import read_state
+from app.workers.backend_resolver import backend_for_stage
 from app.workers.tasks._registry import task_handler
 
 
@@ -174,7 +174,7 @@ def run(task: Task) -> dict[str, Any]:
 
     backend_result = _jsonable_dict(
         _project_with_backend(
-            backend=get_backend(),
+            backend=backend_for_stage(operation_spec),
             operation=operation,
             image_path=image_path,
             output_path=output_path,

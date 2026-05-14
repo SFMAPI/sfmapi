@@ -32,6 +32,7 @@ from app.schemas.api.artifacts import (
     ArtifactValidationOut,
 )
 from app.services import artifact_service
+from sfm_hub.routing import ensure_provider_enabled
 
 
 def _metadata(artifact: StageArtifact) -> dict[str, Any]:
@@ -76,6 +77,15 @@ def _artifact_ref(artifact: StageArtifact) -> dict[str, Any]:
     }
 
 
+def _resolve_backend(provider: str | None) -> Any:
+    try:
+        if provider is not None:
+            ensure_provider_enabled(provider)
+        return get_backend(provider=provider)
+    except KeyError as exc:
+        raise ValidationError(str(exc)) from exc
+
+
 def _target_formats(request: ArtifactConversionPlanRequest) -> list[str]:
     out: list[str] = []
     if request.to_format:
@@ -101,6 +111,7 @@ def _conversion_step(
     return ArtifactConversionStepOut(
         contract_id=str(contract.get("contract_id")) if contract.get("contract_id") else None,
         backend=str(contract.get("backend")) if contract.get("backend") else None,
+        provider=str(contract.get("provider")) if contract.get("provider") else None,
         from_format=str(conversion["from_format"]),
         to_format=str(conversion["to_format"]),
         lossless=bool(conversion.get("lossless", False)),
@@ -110,9 +121,10 @@ def _conversion_step(
     )
 
 
-def _iter_conversion_steps() -> list[ArtifactConversionStepOut]:
+def _iter_conversion_steps(*, provider: str | None = None) -> list[ArtifactConversionStepOut]:
     steps: list[ArtifactConversionStepOut] = []
-    for contract in backend_artifacts.list_backend_artifact_contracts():
+    backend = _resolve_backend(provider)
+    for contract in backend_artifacts.list_backend_artifact_contracts(backend):
         for conversion in contract.get("conversions") or []:
             if not isinstance(conversion, dict):
                 continue
@@ -125,13 +137,14 @@ def _find_conversion_path(
     from_format: str,
     target_formats: list[str],
     require_lossless: bool,
+    provider: str | None,
 ) -> tuple[str, list[ArtifactConversionStepOut]] | None:
     targets = set(target_formats)
     if from_format in targets:
         return from_format, []
 
     edges_by_source: dict[str, list[ArtifactConversionStepOut]] = {}
-    for step in _iter_conversion_steps():
+    for step in _iter_conversion_steps(provider=provider):
         if require_lossless and not step.lossless:
             continue
         edges_by_source.setdefault(step.from_format, []).append(step)
@@ -182,6 +195,7 @@ def plan_conversion_for_artifact(
         from_format=source_format,
         target_formats=target_formats,
         require_lossless=request.require_lossless,
+        provider=request.provider,
     )
     if path is not None:
         target_format, steps = path
@@ -251,7 +265,7 @@ async def submit_conversion(
         raise ValidationError(
             "artifact already uses the selected format; no conversion job created"
         )
-    backend = get_backend()
+    backend = _resolve_backend(request.provider)
     if not has_backend_method(backend, "convert_artifact"):
         raise CapabilityUnavailableError(
             capability="artifacts.convert",
@@ -281,6 +295,8 @@ async def submit_conversion(
         "name": request.name,
         "options": request.options,
     }
+    if request.provider is not None:
+        task_spec["provider"] = request.provider
     node = TaskNode(
         task_id=new_id(),
         kind="convert_artifact",

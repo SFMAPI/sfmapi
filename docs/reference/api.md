@@ -100,15 +100,15 @@ capabilities.
 
 | Method | Path | Body / Query | Returns |
 |---|---|---|---|
-| GET | `/v1/backend` | - | `BackendOut` |
-| GET | `/v1/backend/actions` | `?page_token=&page_size=&include_schemas=false` | `Page<BackendAction>` |
-| GET | `/v1/backend/actions/{action_id}` | - | `BackendAction` with schemas |
-| POST | `/v1/backend/actions/{action_id}:validate` | `{inputs}` | `BackendActionValidateResponse` |
-| POST | `/v1/backend/actions/{action_id}:run` | `{project_id, inputs}` | 202 + `JobAcceptedResponse` |
-| GET | `/v1/backend/config-schemas` | `?page_token=&page_size=&include_schemas=true` | `Page<BackendConfigSchema>` |
-| GET | `/v1/backend/config-schemas/{config_id}` | - | `BackendConfigSchema` |
-| GET | `/v1/backend/artifact-contracts` | `?page_token=&page_size=` | `Page<BackendArtifactContract>` |
-| GET | `/v1/backend/artifact-contracts/{contract_id}` | - | `BackendArtifactContract` |
+| GET | `/v1/backend` | `?provider=` | `BackendOut` |
+| GET | `/v1/backend/actions` | `?page_token=&page_size=&include_schemas=false&provider=` | `Page<BackendAction>` |
+| GET | `/v1/backend/actions/{action_id}` | `?provider=` | `BackendAction` with schemas |
+| POST | `/v1/backend/actions/{action_id}:validate` | `{provider?, inputs}` | `BackendActionValidateResponse` |
+| POST | `/v1/backend/actions/{action_id}:run` | `{project_id, provider?, inputs}` | 202 + `JobAcceptedResponse` |
+| GET | `/v1/backend/config-schemas` | `?page_token=&page_size=&include_schemas=true&provider=` | `Page<BackendConfigSchema>` |
+| GET | `/v1/backend/config-schemas/{config_id}` | `?provider=` | `BackendConfigSchema` |
+| GET | `/v1/backend/artifact-contracts` | `?page_token=&page_size=&provider=` | `Page<BackendArtifactContract>` |
+| GET | `/v1/backend/artifact-contracts/{contract_id}` | `?provider=` | `BackendArtifactContract` |
 | GET | `/v1/backend/providers` | `?page_token=&page_size=` | `Page<Provider>` |
 | GET | `/v1/backend/routing` | - | `RoutingOut` |
 
@@ -116,7 +116,10 @@ capabilities.
 default so catalog reads stay small. Pass `include_schemas=true`, or
 read one action, when a UI needs form fields. `:run` enqueues a normal
 `backend_action` job, returns `Location: /v1/jobs/{id}`, and includes
-optional `action_id` and `backend` fields in the accepted-job body.
+optional `action_id`, `backend`, and `provider` fields in the
+accepted-job body. Pass `provider` when inspecting or running a
+backend installed through sfm_hub without making it the process-wide
+`SFMAPI_BACKEND`.
 When `SFMAPI_MCP_MODE=local` or `SFMAPI_MCP_ENABLED=true` mounts MCP
 into the API process, `GET /v1/backend` also advertises `_links.mcp`
 and `_links.mcp_status`.
@@ -125,7 +128,8 @@ Backend config schemas describe valid keys for `backend_options` on
 portable stage specs. They are scoped by `stage`, optional
 `capability`, and optional `provider`. sfmapi validates unknown keys
 and basic JSON types before queuing a job when the active backend
-publishes a matching schema; otherwise the options pass through and
+or selected provider backend publishes a matching schema; otherwise
+the options pass through and
 the backend validates them.
 
 Backend artifact contracts describe the portable artifact kinds and
@@ -301,8 +305,8 @@ verification emits several candidate pair sets.
 | POST | `/v1/artifacts:import` | `ArtifactImportRequest` | `StageArtifact` |
 | GET | `/v1/artifacts/{artifact_id}` | - | `StageArtifact` |
 | GET | `/v1/artifacts/{artifact_id}/content` | `?download=true` | file bytes |
-| POST | `/v1/artifacts/{artifact_id}:conversionPlan` | `{to_format? , accepted_formats?, require_lossless?}` | `ArtifactConversionPlan` |
-| POST | `/v1/artifacts/{artifact_id}:convert` | `{to_format? , accepted_formats?, to_kind?, name?, options?}` | 202 + `JobAccepted` |
+| POST | `/v1/artifacts/{artifact_id}:conversionPlan` | `{provider?, to_format?, accepted_formats?, require_lossless?}` | `ArtifactConversionPlan` |
+| POST | `/v1/artifacts/{artifact_id}:convert` | `{provider?, to_format?, accepted_formats?, to_kind?, name?, options?}` | 202 + `JobAccepted` |
 | POST | `/v1/artifacts/{artifact_id}:validate` | - | `ArtifactValidation` |
 
 `StageArtifact.uri` is metadata, not a portability contract. Use
@@ -341,7 +345,9 @@ namespaced same-family kind such as `features.hloc_h5` or
 such as `hloc.features.h5.v1` or `colmap.matches.database.v1`.
 
 `/v1/artifacts/{artifact_id}:conversionPlan` chooses the shortest
-conversion path from the active backend's artifact contracts. Pass
+conversion path from the selected backend's artifact contracts. Pass
+`provider` to target a specific installed backend provider, or omit it
+to use the process default backend. Pass
 `accepted_formats` in preference order to let sfmapi negotiate the
 target format; pass `to_format` for an exact target. `:convert`
 submits the selected conversion as a normal job and requires the
@@ -379,8 +385,8 @@ For "right now" use cases that don't need a Project/Dataset row.
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/v1/oneshot/features` | image bytes (`Content-Type: image/...`) | `OneShotFeaturesResponse` |
-| POST | `/v1/oneshot/localize` | image bytes + `?recon_id=` | `OneShotLocalizeResponse` |
+| POST | `/v1/oneshot/features` | image bytes + `?provider=` (`Content-Type: image/...`) | `OneShotFeaturesResponse` |
+| POST | `/v1/oneshot/localize` | image bytes + `?recon_id=&provider=` | `OneShotLocalizeResponse` |
 
 Bytes are tempfile'd then deleted; no DB row is created. Capped at
 `SFMAPI_ONESHOT_MAX_REQUEST_BYTES` (50 MiB default).

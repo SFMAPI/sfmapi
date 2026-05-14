@@ -15,8 +15,10 @@ import pytest
 
 from app.adapters.backend import Backend, SfmBackend, require_backend_method
 from app.adapters.registry import (
+    _PROVIDER_REGISTRY,
     _REGISTRY,
     get_backend,
+    list_backend_providers,
     list_backends,
     register_backend,
 )
@@ -52,7 +54,9 @@ def test_no_default_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     """sfmapi ships nothing; resolving without an env var or
     explicit name raises a clear error."""
     saved = dict(_REGISTRY)
+    saved_providers = dict(_PROVIDER_REGISTRY)
     _REGISTRY.clear()
+    _PROVIDER_REGISTRY.clear()
     monkeypatch.delenv("SFMAPI_BACKEND", raising=False)
     try:
         with pytest.raises(KeyError, match="no sfmapi backend selected"):
@@ -60,11 +64,33 @@ def test_no_default_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     finally:
         _REGISTRY.clear()
         _REGISTRY.update(saved)
+        _PROVIDER_REGISTRY.clear()
+        _PROVIDER_REGISTRY.update(saved_providers)
 
 
 def test_unknown_backend_name_raises() -> None:
     with pytest.raises(KeyError, match="unknown sfmapi backend"):
         get_backend("not.a.real.backend")
+
+
+def test_unknown_provider_raises() -> None:
+    with pytest.raises(KeyError, match="unknown sfmapi provider"):
+        get_backend(provider="not.a.real.provider")
+
+
+def test_get_backend_provider_falls_through_to_backend_name() -> None:
+    """``get_backend(provider=name)`` resolves through ``_REGISTRY`` when
+    ``name`` is a registered backend name without a separate provider
+    alias. This is the ergonomic for single-backend deployments that
+    haven't bothered declaring ``providers=[...]`` but still want
+    per-stage routing to reach the only registered factory."""
+    register_backend("stub-fallthrough", StubBackend)
+    try:
+        assert "stub-fallthrough" not in list_backend_providers()
+        backend = get_backend(provider="stub-fallthrough")
+        assert backend.name == "stub"
+    finally:
+        _REGISTRY.pop("stub-fallthrough", None)
 
 
 def test_minimal_action_backend_satisfies_base_protocol_only() -> None:
@@ -86,11 +112,13 @@ def test_stub_satisfies_sfmbackend_structurally() -> None:
 
 
 def test_register_and_resolve_custom_backend() -> None:
-    register_backend("stub-test", StubBackend)
+    register_backend("stub-test", StubBackend, providers=["stub-provider"])
     try:
         assert "stub-test" in list_backends()
+        assert "stub-provider" in list_backend_providers()
         backend = get_backend("stub-test")
         assert backend.name == "stub"
+        assert get_backend(provider="stub-provider").name == "stub"
         # Stub raises on every operation; consumers wanting success
         # paths subclass + override.
         with pytest.raises(CapabilityUnavailableError):
@@ -102,6 +130,7 @@ def test_register_and_resolve_custom_backend() -> None:
             )
     finally:
         _REGISTRY.pop("stub-test", None)
+        _PROVIDER_REGISTRY.pop("stub-provider", None)
 
 
 def test_unsupported_capability_raises_501_shaped_error() -> None:

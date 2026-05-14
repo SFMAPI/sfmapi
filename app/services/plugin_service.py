@@ -173,7 +173,9 @@ def enable_plugin(plugin_id: str) -> dict[str, Any]:
     try:
         set_plugin_enabled(plugin_id, True)
     except KeyError as exc:
-        raise ValidationError(f"plugin {plugin_id!r} is not installed") from exc
+        if plugin_id not in discovered_plugin_ids():
+            raise ValidationError(f"plugin {plugin_id!r} is not installed") from exc
+        record_manual_install(plugin_id, method="entry_point", enabled=True)
     return get_plugin(plugin_id)
 
 
@@ -182,7 +184,9 @@ def disable_plugin(plugin_id: str) -> dict[str, Any]:
     try:
         set_plugin_enabled(plugin_id, False)
     except KeyError as exc:
-        raise ValidationError(f"plugin {plugin_id!r} is not installed") from exc
+        if plugin_id not in discovered_plugin_ids():
+            raise ValidationError(f"plugin {plugin_id!r} is not installed") from exc
+        record_manual_install(plugin_id, method="entry_point", enabled=False)
     return get_plugin(plugin_id)
 
 

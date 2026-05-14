@@ -2,7 +2,7 @@
 
 Status: closed for the sfmapi-side registry, entry-point discovery,
 install planning, CLI, operator API, benchmark validation, and
-provider-routing contract.
+provider-routing execution contract.
 
 ## Product Contract
 
@@ -14,6 +14,10 @@ provider-routing contract.
 - [x] Support default, workspace, and project routing profile scopes.
 - [x] Require request-level `provider` to override defaults.
 - [x] Return a clear ambiguity error when several providers can satisfy a stage.
+- [x] Execute portable stage tasks through the resolved provider backend.
+- [x] Skip disabled entry-point plugins during backend loading.
+- [x] Support provider-specific backend action, config schema, artifact
+  contract, artifact conversion, one-shot, and MCP discovery paths.
 - [x] Keep plugin install, enable, and doctor operations under CLI or admin API scope.
 - [x] Prevent public SfM job APIs from silently installing plugins.
 
@@ -26,6 +30,7 @@ provider-routing contract.
 - [x] Registry search and info helpers.
 - [x] Installed Python entry-point discovery for `[project.entry-points."sfmapi.backends"]`.
 - [x] Optional entry-point backend loading through `SFMAPI_AUTO_LOAD_BACKEND_PLUGINS=true`.
+- [x] Provider aliases registered into the process-local backend registry.
 - [x] GitHub-link parser for plugin sources.
 - [x] uv direct-reference install-plan generation.
 - [x] Docker install-plan generation.
@@ -109,8 +114,11 @@ sfmapi plugins install local_test \
 - [x] Check workspace-specific routing profile.
 - [x] Check the default routing profile.
 - [x] Check global provider priority.
+- [x] Register resolved provider ids as backend aliases for worker execution.
 - [x] Return an ambiguity error with candidate providers and a suggested fix.
 - [x] Keep clean installs working with no plugin state and the stub backend.
+- [x] Reject combined pair-selection/matching tasks when `pairs.provider` and
+  `matcher.provider` resolve to different providers.
 
 ## Initial Hub Entries
 
@@ -139,6 +147,9 @@ documentation. They may expose `manifest`, `get_plugin_manifest()`,
 `backend_factory`, or be a callable backend factory. `sfmapi plugins
 entry-points --load`, `sfmapi check-backend --load-entry-points`, and
 `python -m bench.cli plugins --require-entry-points` validate adoption.
+When a manifest is available, its provider ids are registered as
+aliases for the backend factory. If one entry point registers multiple
+backend factories, provider ids are matched to factories by name.
 
 ## Validation Commands
 

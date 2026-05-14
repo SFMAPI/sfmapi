@@ -17,6 +17,7 @@ from urllib.parse import quote
 from app.adapters.registry import get_backend
 from app.core.capabilities import ALL_KNOWN
 from app.core.errors import NotFoundError, ValidationError
+from sfm_hub.routing import ensure_provider_enabled
 
 
 class BackendConfigSchemaProvider(Protocol):
@@ -352,7 +353,13 @@ def validate_backend_options(
     if not options:
         return {"valid": True, "errors": [], "normalized_options": {}}
 
-    backend = backend or get_backend()
+    if backend is None:
+        try:
+            if provider is not None:
+                ensure_provider_enabled(provider)
+            backend = get_backend(provider=provider)
+        except KeyError as exc:
+            raise ValidationError(str(exc)) from exc
     rows = list_backend_config_schemas(backend, include_schemas=True)
     stage_rows = [row for row in rows if row.get("stage") == stage]
     if capability:
@@ -360,10 +367,12 @@ def validate_backend_options(
         if exact:
             stage_rows = exact
     if provider:
+        backend_name = str(getattr(backend, "name", "unknown"))
         provider_rows = [
             row
             for row in stage_rows
-            if row.get("provider") == provider or row.get("backend") == provider
+            if row.get("provider") in {provider, backend_name}
+            or row.get("backend") in {provider, backend_name}
         ]
         if not provider_rows:
             return {"valid": True, "errors": [], "normalized_options": dict(options)}

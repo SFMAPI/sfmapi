@@ -7,12 +7,12 @@ from typing import Any
 
 from app.adapters.backend import require_backend_method
 from app.adapters.progress import call_with_optional_progress
-from app.adapters.registry import get_backend
 from app.core import artifacts as artifact_vocab
 from app.core.config import get_settings
 from app.core.paths import Paths
 from app.db.models import Task
 from app.workers._task_io import read_state
+from app.workers.backend_resolver import backend_for_stage
 from app.workers.progress import get_progress_reporter
 from app.workers.tasks._registry import task_handler
 
@@ -77,7 +77,7 @@ def run(task: Task) -> dict[str, Any]:
     )
     workspace.mkdir(parents=True, exist_ok=True)
 
-    backend = get_backend()
+    backend = backend_for_stage(spec)
     convert = require_backend_method(
         backend,
         "convert_artifact",

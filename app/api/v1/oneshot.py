@@ -35,6 +35,7 @@ router = APIRouter(prefix="/oneshot", tags=["oneshot"])
 async def oneshot_features(
     request: Request,
     type: FeatureType = Query("sift", description="Local feature extractor."),
+    provider: str | None = Query(None, description="Optional provider id to execute this call."),
     max_num_features: int = Query(8192, ge=1, le=65536),
     use_gpu: bool = Query(True),
     seed: int = Query(0),
@@ -69,6 +70,7 @@ async def oneshot_features(
 
     spec = FeaturesSpec(
         type=type,
+        provider=provider,
         max_num_features=max_num_features,
         use_gpu=use_gpu,
         seed=seed,
@@ -86,6 +88,7 @@ async def oneshot_localize(
     request: Request,
     recon_id: str = Query(..., description="Existing reconstruction to localize against."),
     type: FeatureType = Query("sift", description="Local feature extractor."),
+    provider: str | None = Query(None, description="Optional provider id to execute this call."),
     max_num_features: int = Query(8192, ge=1, le=65536),
     use_gpu: bool = Query(True),
     seed: int = Query(0),
@@ -122,6 +125,7 @@ async def oneshot_localize(
 
     spec = FeaturesSpec(
         type=type,
+        provider=provider,
         max_num_features=max_num_features,
         use_gpu=use_gpu,
         seed=seed,

@@ -6,14 +6,30 @@ by the existing localize integration test path."""
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from app.adapters.registry import register_backend
+from app.adapters.stub_backend import StubBackend
 from app.core.errors import NotFoundError, ValidationError
 from app.schemas.pipeline_spec import FeaturesSpec
 from app.services import oneshot_service
 
 pytestmark = pytest.mark.unit
+
+
+class OneShotLocalizeProviderBackend(StubBackend):
+    name = "oneshot_localize_provider"
+
+    def localize_from_memory(
+        self,
+        *,
+        sparse_dir: Path,
+        query_image: Path,
+        spec: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {"ok": True, "query": query_image.name}
 
 
 def test_localize_oneshot_rejects_empty_body(tmp_path: Path) -> None:
@@ -49,3 +65,25 @@ def test_localize_oneshot_rejects_missing_sparse_dir(tmp_path: Path) -> None:
             sparse_dir=missing,
             content_type="image/jpeg",
         )
+
+
+def test_localize_oneshot_resolves_provider_alias(tmp_path: Path) -> None:
+    register_backend(
+        "oneshot_localize_provider",
+        OneShotLocalizeProviderBackend,
+        providers=["oneshot.localize"],
+    )
+    sparse_dir = tmp_path / "sparse"
+    sparse_dir.mkdir()
+
+    out = oneshot_service.localize_oneshot(
+        b"\xff\xd8\xff\xe0image-bytes",
+        recon_id="r1",
+        spec=FeaturesSpec(provider="oneshot.localize"),
+        sparse_dir=sparse_dir,
+        content_type="image/jpeg",
+    )
+
+    assert out.runtime.backend == "oneshot_localize_provider"
+    assert out.result["ok"] is True
+    assert out.spec["provider"] == "oneshot.localize"

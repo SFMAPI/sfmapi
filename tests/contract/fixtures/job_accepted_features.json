@@ -4,15 +4,16 @@
   "artifact_id": null,
   "backend": null,
   "dataset_id": null,
-  "job_id": "01KRDAW09EEPCXNN2TQ6BY7QVY",
+  "job_id": "01H00000000000000000006001",
   "method": null,
   "project_id": null,
+  "provider": null,
   "recon_id": null,
   "source_recon_ids": null,
   "strategy": null,
   "target_format": null,
   "target_recon_id": null,
   "task_ids": [
-    "01KRDAW09EEPCXNN2TQ6BY7QVX"
+    "01H00000000000000000014001"
   ]
 }

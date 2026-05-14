@@ -74,6 +74,13 @@ class ArtifactConversionPlanRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    provider: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+        description="Optional provider id to use when planning backend-native conversions.",
+    )
     to_format: str | None = Field(
         default=None,
         min_length=1,
@@ -95,6 +102,7 @@ class ArtifactConversionStepOut(BaseModel):
 
     contract_id: str | None = None
     backend: str | None = None
+    provider: str | None = None
     from_format: str
     to_format: str
     lossless: bool = False

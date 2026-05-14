@@ -19,12 +19,12 @@ from typing import Any
 
 from app.adapters.backend import require_backend_method
 from app.adapters.progress import call_with_optional_progress
-from app.adapters.registry import get_backend
 from app.core.config import get_settings
 from app.core.paths import Paths
 from app.db.models import Task
 from app.workers._materialize import materialize_image_set
 from app.workers._task_io import read_state
+from app.workers.backend_resolver import backend_for_stage
 from app.workers.options import stage_options
 from app.workers.progress import get_progress_reporter
 from app.workers.tasks._registry import task_handler
@@ -62,7 +62,7 @@ def run(task: Task) -> dict[str, Any]:
     options = _feature_options(spec)
     if inputs.get("input_artifacts"):
         options["input_artifacts"] = inputs["input_artifacts"]
-    backend = get_backend()
+    backend = backend_for_stage(spec)
     feature_type = str(spec.get("type", "sift"))
     extract_features = require_backend_method(
         backend,

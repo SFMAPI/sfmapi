@@ -1,8 +1,8 @@
 {
   "blob_sha": null,
   "expected_size": 1024,
-  "expires_at": "2026-05-13T05:34:31.610866Z",
+  "expires_at": "2026-01-01T00:00:00Z",
   "received_bytes": 0,
   "state": "open",
-  "upload_id": "01KRDAW05T5NJ4T3CMXE0PXX1V"
+  "upload_id": "01H00000000000000000015001"
 }

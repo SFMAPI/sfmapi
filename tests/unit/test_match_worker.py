@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from app.core.errors import ValidationError
 from app.db.models import Task
 from app.workers.tasks import match as match_task
 
@@ -28,7 +29,7 @@ def test_match_worker_materializes_explicit_inline_pairs(
         def iter_correspondences(self, *, database_path: Path):
             return iter(())
 
-    monkeypatch.setattr(match_task, "get_backend", lambda: Backend())
+    monkeypatch.setattr(match_task, "backend_for_match_stage", lambda pairs, matcher: Backend())
 
     db_path = tmp_path / "database.db"
     task = Task(
@@ -63,3 +64,27 @@ def test_match_worker_materializes_explicit_inline_pairs(
     assert captured["options"]["pairs"]["provider"] == "hloc"
     assert captured["options"]["matcher"]["provider"] == "hloc"
     assert "provider" not in captured["options"]
+
+
+def test_match_worker_rejects_mixed_pair_and_matcher_providers(tmp_path: Path) -> None:
+    db_path = tmp_path / "database.db"
+    task = Task(
+        task_id="01H00000000000000000000000",
+        tenant_id="default",
+        job_id="01H00000000000000000000001",
+        kind="match",
+        inputs_hash="i" * 64,
+        params_hash="p" * 64,
+        runtime_version_id="rv",
+        cache_key="c" * 64,
+        task_state_json={
+            "inputs": {"database_path": str(db_path)},
+            "spec": {
+                "pairs": {"strategy": "exhaustive", "provider": "hloc"},
+                "matcher": {"type": "sift", "provider": "colmap_cli"},
+            },
+        },
+    )
+
+    with pytest.raises(ValidationError, match="different providers"):
+        match_task.run(task)

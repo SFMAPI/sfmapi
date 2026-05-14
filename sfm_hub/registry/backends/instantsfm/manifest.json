@@ -4,13 +4,19 @@
   "description": "Backend plugin for Python-based InstantSfM workflows.",
   "package_name": "sfmapi-instantsfm",
   "github_url": "https://github.com/SFMAPI/sfmapi_instantsfm.git",
-  "entry_points": ["sfmapi_instantsfm.plugin:plugin"],
+  "entry_points": [
+    "sfmapi_instantsfm.plugin:plugin"
+  ],
   "providers": [
     {
       "provider_id": "instantsfm",
       "display_name": "InstantSfM",
-      "capabilities": ["features.extract.superpoint", "pairs.retrieval", "matchers.lightglue", "map.incremental"],
-      "backend_actions": ["instantsfm.*"],
+      "capabilities": [
+        "map.global"
+      ],
+      "backend_actions": [
+        "instantsfm.*"
+      ],
       "priority_hint": 60
     }
   ],
@@ -23,20 +29,38 @@
     },
     "docker": {}
   },
-  "capabilities": ["features.extract.superpoint", "pairs.retrieval", "matchers.lightglue", "map.incremental"],
-  "backend_actions": ["instantsfm.*"],
-  "config_schemas": ["instantsfm.*"],
-  "artifact_contracts": ["sfmapi.features", "sfmapi.matches", "sfmapi.reconstruction"],
-  "licenses": [{"name": "AGPL-3.0-or-later"}],
+  "capabilities": [
+    "map.global"
+  ],
+  "backend_actions": [
+    "instantsfm.*"
+  ],
+  "config_schemas": [],
+  "artifact_contracts": [],
+  "licenses": [
+    {
+      "name": "AGPL-3.0-or-later"
+    }
+  ],
   "upstream_projects": [
-    {"name": "InstantSfM", "url": "https://github.com/cre185/InstantSfM", "license": "CC-BY-NC-4.0"}
+    {
+      "name": "InstantSfM",
+      "url": "https://github.com/cre185/InstantSfM",
+      "license": "CC-BY-NC-4.0"
+    }
   ],
   "compatibility": {
     "sfmapi": ">=0.0.1",
     "python": ">=3.12,<3.13",
-    "os": ["windows", "linux"],
+    "os": [
+      "windows",
+      "linux"
+    ],
     "cuda": "recommended"
   },
-  "conformance": {"status": "not_run", "suite": "sfmapi-bench"},
+  "conformance": {
+    "status": "not_run",
+    "suite": "sfmapi-bench"
+  },
   "trust_tier": "community"
 }

@@ -1,17 +1,14 @@
-"""Backend registry + ``get_backend()`` resolver.
+"""Backend registry and provider-aware resolver.
 
-sfmapi ships **no concrete SfM backend**. The wire surface
-(REST routes, request/response schemas, error envelope, capability
-discovery) is engine-independent; backend implementations live in
-separate repositories. To run a real workload, install one such
-implementation and register it.
+sfmapi ships no concrete SfM backend. The wire surface is engine-independent;
+backend implementations live in separate packages and register factories at
+startup. Worker code never imports a specific backend module. It resolves a
+backend by one of two selectors:
 
-Worker code never imports a specific backend module — it calls
-:func:`get_backend` and uses the returned backend object. Which
-backend is returned is controlled by the ``SFMAPI_BACKEND``
-environment variable (or the explicit ``name`` arg).
+- a backend name, normally from ``SFMAPI_BACKEND``;
+- a provider id resolved by the sfm_hub routing layer.
 
-Adding a backend (separate package or app-startup hook):
+Adding a backend package:
 
 .. code-block:: python
 
@@ -19,18 +16,17 @@ Adding a backend (separate package or app-startup hook):
 
     class MyBackend:
         name = "my_backend"
-        ...  # implement Backend and any optional stage/action surfaces
 
-    register_backend("my_backend", MyBackend)
+    register_backend("my_backend", MyBackend, providers=["my_provider"])
 
-Then set ``SFMAPI_BACKEND=my_backend`` and the worker picks it up
-without any other change.
+Then set ``SFMAPI_BACKEND=my_backend`` for process-wide default execution, or
+let sfm_hub route a stage to ``my_provider``.
 """
 
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -38,32 +34,65 @@ if TYPE_CHECKING:
 
 
 _REGISTRY: dict[str, Callable[[], Backend]] = {}
+_PROVIDER_REGISTRY: dict[str, Callable[[], Backend]] = {}
 
 
-def register_backend(name: str, factory: Callable[[], Backend]) -> None:
-    """Register a backend factory. Re-registering an existing name
-    overwrites it (useful for tests)."""
+def register_backend(
+    name: str,
+    factory: Callable[[], Backend],
+    *,
+    providers: Sequence[str] | None = None,
+) -> None:
+    """Register a backend factory.
+
+    Re-registering an existing name overwrites it, which keeps tests and app
+    startup hooks simple. ``providers`` registers sfm_hub provider ids as
+    aliases for the same factory.
+    """
+
     _REGISTRY[name] = factory
+    for provider_id in providers or ():
+        register_backend_provider(provider_id, factory)
+
+
+def register_backend_provider(provider_id: str, factory: Callable[[], Backend]) -> None:
+    """Register one sfm_hub provider id to a backend factory."""
+
+    _PROVIDER_REGISTRY[provider_id] = factory
 
 
 def list_backends() -> list[str]:
     return sorted(_REGISTRY)
 
 
-def get_backend(name: str | None = None) -> Backend:
-    """Resolve and instantiate the configured backend.
+def list_backend_providers() -> list[str]:
+    return sorted(_PROVIDER_REGISTRY)
 
-    ``name`` overrides the env var when set (mostly for tests).
-    Raises :class:`KeyError` if no backend is registered under the
-    resolved name — sfmapi ships no default implementation, so the
-    caller (or test fixture, or app-startup hook) must register one
-    before workers can run.
+
+def get_backend(name: str | None = None, *, provider: str | None = None) -> Backend:
+    """Resolve and instantiate a backend.
+
+    ``provider`` is used by routed stage execution. ``name`` is the legacy
+    backend selector and overrides ``SFMAPI_BACKEND`` when supplied.
     """
+
+    if provider:
+        if provider in _PROVIDER_REGISTRY:
+            return _PROVIDER_REGISTRY[provider]()
+        if provider in _REGISTRY:
+            return _REGISTRY[provider]()
+        raise KeyError(
+            f"unknown sfmapi provider {provider!r}; registered providers: "
+            f"{list_backend_providers()}; registered backends: {list_backends()}. "
+            "Install, enable, and load a backend plugin that declares this provider."
+        )
+
     chosen = name or os.environ.get("SFMAPI_BACKEND")
     if not chosen:
         raise KeyError(
             "no sfmapi backend selected: set SFMAPI_BACKEND or pass `name=` "
-            f"explicitly. Registered backends: {list_backends()}"
+            f"explicitly. Registered backends: {list_backends()}; "
+            f"registered providers: {list_backend_providers()}"
         )
     if chosen not in _REGISTRY:
         raise KeyError(
@@ -73,4 +102,10 @@ def get_backend(name: str | None = None) -> Backend:
     return _REGISTRY[chosen]()
 
 
-__all__ = ["get_backend", "list_backends", "register_backend"]
+__all__ = [
+    "get_backend",
+    "list_backend_providers",
+    "list_backends",
+    "register_backend",
+    "register_backend_provider",
+]

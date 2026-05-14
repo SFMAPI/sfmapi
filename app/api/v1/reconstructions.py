@@ -80,6 +80,13 @@ class MergeRequest(BaseModel):
     target_recon_id: str
     source_recon_ids: list[str] = Field(..., min_length=1)
     sim3_aligners: list[dict[str, Any]] | None = None
+    provider: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+        description="Optional provider id to execute the merge.",
+    )
 
 
 @router.get("/reconstructions/{recon_id}", response_model=ReconstructionOut)
@@ -465,6 +472,7 @@ async def merge_recons_endpoint(
         target_recon_id=body.target_recon_id,
         source_recon_ids=body.source_recon_ids,
         sim3_aligners=body.sim3_aligners,
+        provider=body.provider,
     )
     return accepted_response(
         JobAcceptedResponse(
@@ -472,6 +480,7 @@ async def merge_recons_endpoint(
             recon_id=body.target_recon_id,
             target_recon_id=body.target_recon_id,
             source_recon_ids=body.source_recon_ids,
+            provider=body.provider,
         )
     )
 

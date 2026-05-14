@@ -18,12 +18,11 @@ bash scripts/test_dual_db.sh                      # SQLite + (Postgres if SFMAPI
 bash scripts/test_postgres_local.sh               # ephemeral Postgres in docker
 ```
 
-## Lint + type
+## Ruff stack
 
 ```bash
-uv run ruff check app tests
-uv run ruff format --check app tests
-uv run mypy app
+uv run ruff check app sfmapi sfm_hub tests
+uv run ruff format --check app sfmapi sfm_hub tests
 ```
 
 ## Smoke-testing the deploy
@@ -160,7 +159,10 @@ own repos and satisfy the smallest protocol layer they need.
    `colmap.feature_extractor` or `openmvg.compute_features` belong in
    `list_backend_actions()`, not in `ALL_KNOWN`.
 3. Register the factory at app startup:
-   ``sfmapi.runtime.register_backend("name", MyBackend)``.
+   ``sfmapi.runtime.register_backend("name", MyBackend, providers=["name"])``.
+   Pass ``providers=[...]`` to alias the factory under any sfm_hub
+   provider ids the backend serves so per-stage ``spec.provider``
+   routing reaches it.
 4. Add a backend contract test:
    ``assert_backend_contract(MyBackend())`` from
    `sfmapi.backends`. This catches unknown portable

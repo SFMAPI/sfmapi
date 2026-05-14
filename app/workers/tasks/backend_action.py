@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from app.adapters import backend_actions
-from app.adapters.registry import get_backend
 from app.core.config import get_settings
 from app.core.paths import Paths
 from app.db.models import Task
 from app.workers._task_io import read_state
+from app.workers.backend_resolver import backend_for_stage
 from app.workers.progress import get_progress_reporter
 from app.workers.tasks._registry import task_handler
 
@@ -33,18 +33,19 @@ def run(task: Task) -> dict[str, Any]:
         progress.phase_started("backend_action")
         progress.phase_progress("backend_action", current=0, total=1)
 
+    backend = backend_for_stage(spec)
     result = backend_actions.run_backend_action(
         action_id,
         action_inputs,
         workspace=workspace,
         progress=progress,
+        backend=backend,
     )
 
     if progress is not None:
         progress.phase_progress("backend_action", current=1, total=1)
         progress.phase_completed("backend_action")
 
-    backend = get_backend()
     return {
         "action_id": action_id,
         "backend": str(getattr(backend, "name", "unknown")),

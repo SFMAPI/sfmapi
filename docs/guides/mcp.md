@@ -242,5 +242,10 @@ yet. Use the REST API or SDKs for project creation, uploads, pipeline
 submission, backend action execution, cancellation, and resume until
 those MCP actions have explicit safety and auth rules.
 
+`list_backend_actions`, `get_backend_action`, and
+`plan_artifact_conversion` accept an optional `provider` argument so
+agents can inspect a specific installed backend provider without
+changing `SFMAPI_BACKEND`.
+
 Artifact tools expose metadata only. Use REST `GET
 /v1/artifacts/{artifact_id}/content` or the SDKs for file transfer.

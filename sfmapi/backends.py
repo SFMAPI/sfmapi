@@ -9,6 +9,7 @@ from app.adapters.backend import (
     BatchLocalizationBackend,
     ExportBackend,
     FeatureBackend,
+    GeometryBackend,
     LocalizationBackend,
     MappingBackend,
     ObservationBackend,
@@ -17,9 +18,12 @@ from app.adapters.backend import (
     ReconstructionReaderBackend,
     RefinementBackend,
     RetrievalBackend,
+    RigBackend,
     SfmBackend,
     SphericalBackend,
     TransformBackend,
+    UndistortBackend,
+    VocabTreeBackend,
     has_backend_method,
     require_backend_method,
 )
@@ -61,7 +65,13 @@ from app.adapters.progress import (
     accepts_progress,
     call_with_optional_progress,
 )
-from app.adapters.registry import get_backend, list_backends, register_backend
+from app.adapters.registry import (
+    get_backend,
+    list_backend_providers,
+    list_backends,
+    register_backend,
+    register_backend_provider,
+)
 
 __all__ = [
     "ArtifactConversionBackend",
@@ -73,6 +83,7 @@ __all__ = [
     "BatchLocalizationBackend",
     "ExportBackend",
     "FeatureBackend",
+    "GeometryBackend",
     "LocalizationBackend",
     "LogLevel",
     "MappingBackend",
@@ -83,9 +94,12 @@ __all__ = [
     "ReconstructionReaderBackend",
     "RefinementBackend",
     "RetrievalBackend",
+    "RigBackend",
     "SfmBackend",
     "SphericalBackend",
     "TransformBackend",
+    "UndistortBackend",
+    "VocabTreeBackend",
     "accepts_progress",
     "assert_backend_action_contract",
     "assert_backend_artifact_contract",
@@ -108,8 +122,10 @@ __all__ = [
     "list_backend_actions",
     "list_backend_artifact_contracts",
     "list_backend_config_schemas",
+    "list_backend_providers",
     "list_backends",
     "register_backend",
+    "register_backend_provider",
     "require_backend_method",
     "run_backend_action",
     "validate_backend_action",

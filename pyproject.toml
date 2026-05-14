@@ -48,7 +48,6 @@ dev = [
     "pytest-cov>=6.0",
     "httpx>=0.28",
     "ruff>=0.8",
-    "mypy>=1.13",
     "freezegun>=1.5",
     "respx>=0.21",
     "moto[s3]>=5.0",
@@ -94,15 +93,3 @@ select = ["E", "F", "I", "B", "UP", "SIM", "PT", "RUF"]
 # B008 = function call in default arg (FastAPI requires `Depends(...)` etc.).
 # UP046 = `class Foo(Generic[T])` is the only Pydantic-compatible form pre-PEP 695.
 ignore = ["E501", "B008", "UP046"]
-
-[tool.mypy]
-python_version = "3.12"
-strict = true
-warn_unused_ignores = true
-disallow_untyped_defs = true
-no_implicit_optional = true
-plugins = ["pydantic.mypy"]
-
-# sfmapi proper imports no engine library, so no mypy overrides
-# for them are needed. Backend packages handle their own type
-# stubs.

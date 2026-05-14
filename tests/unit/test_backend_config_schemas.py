@@ -53,7 +53,7 @@ class ConfigBackend(StubBackend):
 
 async def _client_for_backend(monkeypatch: pytest.MonkeyPatch) -> AsyncClient:
     monkeypatch.setenv("SFMAPI_BACKEND", "config_test")
-    register_backend("config_test", ConfigBackend)
+    register_backend("config_test", ConfigBackend, providers=["config_test"])
     reset_settings_for_tests()
     reset_capabilities_cache()
     from app.main import create_app
@@ -123,6 +123,26 @@ def test_backend_options_validate_against_published_schema() -> None:
             provider="config_test",
             options={"SiftExtraction.peak_threshold": "low"},
             backend=backend,
+        )
+
+
+def test_backend_options_resolve_provider_alias_when_no_backend_is_passed() -> None:
+    register_backend("config_test", ConfigBackend, providers=["config_provider"])
+
+    valid = backend_config.validate_backend_options(
+        stage="features",
+        capability="features.extract.sift",
+        provider="config_provider",
+        options={"SiftExtraction.peak_threshold": 0.01},
+    )
+
+    assert valid["valid"] is True
+    with pytest.raises(ValidationError, match="not a valid option"):
+        backend_config.validate_backend_options(
+            stage="features",
+            capability="features.extract.sift",
+            provider="config_provider",
+            options={"bad_option": 1},
         )
 
 

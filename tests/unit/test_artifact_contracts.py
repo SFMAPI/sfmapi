@@ -223,7 +223,7 @@ async def test_backend_artifact_contract_catalog_is_discoverable(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("SFMAPI_BACKEND", "artifact_test")
-    register_backend("artifact_test", ArtifactContractBackend)
+    register_backend("artifact_test", ArtifactContractBackend, providers=["artifact_test"])
     reset_settings_for_tests()
     reset_capabilities_cache()
     from app.main import create_app
@@ -300,8 +300,9 @@ def test_backend_artifact_contract_rejects_stub_converter() -> None:
 
 
 async def test_artifact_conversion_plan_convert_and_validate_api(db_setup, monkeypatch) -> None:
-    monkeypatch.setenv("SFMAPI_BACKEND", "artifact_convert")
-    register_backend("artifact_convert", ArtifactConversionBackend)
+    monkeypatch.setenv("SFMAPI_BACKEND", "stub")
+    register_backend("stub", StubBackend)
+    register_backend("artifact_convert", ArtifactConversionBackend, providers=["artifact_convert"])
     reset_settings_for_tests()
     reset_capabilities_cache()
     from app.db.session import get_session_factory
@@ -357,17 +358,25 @@ async def test_artifact_conversion_plan_convert_and_validate_api(db_setup, monke
     ) as client:
         plan = await client.post(
             f"/v1/artifacts/{source_id}:conversionPlan",
-            json={"accepted_formats": ["sfmapi.matches.indexed.v1"]},
+            json={
+                "provider": "artifact_convert",
+                "accepted_formats": ["sfmapi.matches.indexed.v1"],
+            },
         )
         assert plan.status_code == 200, plan.text
         assert plan.json()["executable"] is True
         assert plan.json()["target_format"] == "sfmapi.matches.indexed.v1"
+        assert plan.json()["steps"][0]["provider"] == "artifact_convert"
 
         submitted = await client.post(
             f"/v1/artifacts/{source_id}:convert",
-            json={"accepted_formats": ["sfmapi.matches.indexed.v1"]},
+            json={
+                "provider": "artifact_convert",
+                "accepted_formats": ["sfmapi.matches.indexed.v1"],
+            },
         )
         assert submitted.status_code == 202, submitted.text
+        assert submitted.json()["provider"] == "artifact_convert"
         job_id = submitted.json()["job_id"]
         job_body = (await client.get(f"/v1/jobs/{job_id}")).json()
         assert job_body["status"] == "succeeded"
@@ -386,7 +395,11 @@ async def test_artifact_conversion_plan_convert_and_validate_api(db_setup, monke
 
 async def test_artifact_conversion_supports_multihop_paths(db_setup, monkeypatch) -> None:
     monkeypatch.setenv("SFMAPI_BACKEND", "artifact_multihop")
-    register_backend("artifact_multihop", MultiHopArtifactConversionBackend)
+    register_backend(
+        "artifact_multihop",
+        MultiHopArtifactConversionBackend,
+        providers=["artifact_multihop"],
+    )
     reset_settings_for_tests()
     reset_capabilities_cache()
     from app.db.session import get_session_factory

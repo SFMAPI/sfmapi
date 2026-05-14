@@ -95,12 +95,14 @@ async def list_backend_actions(
     page_size: int = 100,
     page_token: str | None = None,
     include_schemas: bool = False,
+    provider: str | None = None,
 ) -> dict[str, Any]:
     """List backend-native action descriptors."""
     rows, next_page_token = backend_action_service.list_actions(
         page_size=_page_size(page_size),
         page_token=page_token,
         include_schemas=include_schemas,
+        provider=provider,
     )
     page = Page[BackendActionOut](
         items=[BackendActionOut.model_validate(row) for row in rows],
@@ -109,9 +111,13 @@ async def list_backend_actions(
     return _dump(page)
 
 
-async def get_backend_action(action_id: str) -> dict[str, Any]:
+async def get_backend_action(action_id: str, provider: str | None = None) -> dict[str, Any]:
     """Read one backend-native action descriptor."""
-    return _dump(BackendActionOut.model_validate(backend_action_service.get_action(action_id)))
+    return _dump(
+        BackendActionOut.model_validate(
+            backend_action_service.get_action(action_id, provider=provider)
+        )
+    )
 
 
 async def list_projects(
@@ -274,6 +280,7 @@ async def plan_artifact_conversion(
     to_format: str | None = None,
     accepted_formats: list[str] | None = None,
     require_lossless: bool = False,
+    provider: str | None = None,
     tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """Plan a conversion path for one artifact without submitting work."""
@@ -286,6 +293,7 @@ async def plan_artifact_conversion(
                 to_format=to_format,
                 accepted_formats=accepted_formats or [],
                 require_lossless=require_lossless,
+                provider=provider,
             ),
         )
     return _dump(plan)
