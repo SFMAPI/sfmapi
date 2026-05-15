@@ -36,8 +36,11 @@ def _isolate_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Itera
     # Avoid touching Redis in tests; route every task through inline runner.
     monkeypatch.setenv("SFMAPI_INLINE_TASKS", "true")
     # sfmapi ships no concrete backend; register a test stub so
-    # `get_backend()` resolves.
+    # `get_backend()` resolves. Tests must NOT auto-load whatever
+    # plugins happen to be installed in the venv — that would couple
+    # test outcomes to install state.
     monkeypatch.setenv("SFMAPI_BACKEND", "stub")
+    monkeypatch.setenv("SFMAPI_AUTO_LOAD_BACKEND_PLUGINS", "false")
 
     import sfm_hub.discovery as discovery
     from app.adapters.registry import _PROVIDER_REGISTRY, _REGISTRY, register_backend

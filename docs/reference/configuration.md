@@ -55,10 +55,15 @@ build metadata.
 When backend plugins are installed through `sfmapi plugins`, local hub
 state is stored in `~/.config/sfmapi/plugins.json` by default. Set
 `SFMAPI_PLUGIN_STATE` to a shared path when several web or worker
-processes must agree on enabled plugins and routing profiles. Set
-`SFMAPI_AUTO_LOAD_BACKEND_PLUGINS=true` in worker/operator processes
-to load installed `[project.entry-points."sfmapi.backends"]` and
-register provider aliases for execution.
+processes must agree on enabled plugins and routing profiles.
+
+`SFMAPI_AUTO_LOAD_BACKEND_PLUGINS` is `true` by default — every
+installed `[project.entry-points."sfmapi.backends"]` is registered at
+lifespan startup, matching the standard Python plugin-ecosystem
+expectation (`pip install sfmapi_colmap_cli` activates the plugin
+without a separate opt-in). Set it to `false` for deployments that
+want an explicit allowlist; tests already pin it `false` to keep their
+registry deterministic.
 
 ## Notable knobs
 
@@ -71,7 +76,7 @@ register provider aliases for execution.
 | `SFMAPI_UPLOAD_CHUNK_MAX_BYTES` | 8 MiB | Max single PATCH chunk |
 | `SFMAPI_UPLOAD_EXPIRY_HOURS` | 24 | Open uploads GC'd after this |
 | `SFMAPI_BACKEND` | unset | Registered backend name to select at startup |
-| `SFMAPI_AUTO_LOAD_BACKEND_PLUGINS` | false | Load installed backend plugin entry points during API startup |
+| `SFMAPI_AUTO_LOAD_BACKEND_PLUGINS` | true | Load installed backend plugin entry points during API startup (set false for explicit-allowlist deployments) |
 | `SFMAPI_PLUGIN_STATE` | `~/.config/sfmapi/plugins.json` | Local plugin enablement and routing-profile state file |
 | `SFMAPI_RUNTIME_VERSION_ID` | `unknown` | Extra cache-key salt exposed in `/v1/version` |
 | `SFMAPI_PROFILE_REQUESTS` | false | Enable per-request cProfile instrumentation |

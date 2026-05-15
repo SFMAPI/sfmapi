@@ -99,7 +99,13 @@ class Settings(BaseSettings):
     profile_sort_by: Literal["cumulative", "tottime", "time", "calls"] = "cumulative"
     profile_dir: Path | None = None
     warm_capabilities: bool = False
-    auto_load_backend_plugins: bool = False
+    # Auto-discover and register every installed ``sfmapi.backends``
+    # Python entry point at lifespan startup. Default True follows the
+    # standard plugin-ecosystem expectation: ``pip install
+    # sfmapi_colmap_cli`` makes the plugin active without a separate
+    # opt-in flag. Tests pin this False to keep their registry
+    # deterministic regardless of what the venv has installed.
+    auto_load_backend_plugins: bool = True
 
     # Optional MCP adapter. Disabled by default so the core REST server
     # does not depend on FastMCP unless explicitly enabled. Prefer

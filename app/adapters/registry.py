@@ -56,8 +56,30 @@ def register_backend(
 
 
 def register_backend_provider(provider_id: str, factory: Callable[[], Backend]) -> None:
-    """Register one sfm_hub provider id to a backend factory."""
+    """Register one sfm_hub provider id to a backend factory.
 
+    If two plugins declare the same ``provider_id`` (e.g. the umbrella
+    ``colmap_native`` plugin and the granular ``sfmapi_colmap_cli``
+    both claim ``colmap_cli``) the last registration wins — but emit a
+    warning so the operator knows the resolution is install-order
+    dependent. Pin the explicit plugin you want and uninstall the other,
+    or use a routing profile, to make the choice deterministic.
+    """
+    existing = _PROVIDER_REGISTRY.get(provider_id)
+    if existing is not None and existing is not factory:
+        from app.core.logging import get_logger
+
+        get_logger("adapters.registry").warning(
+            "backend.provider_collision",
+            provider_id=provider_id,
+            previous=getattr(existing, "__qualname__", str(existing)),
+            replacement=getattr(factory, "__qualname__", str(factory)),
+            hint=(
+                "two plugins declare the same sfm_hub provider id; the second "
+                "registration wins. Uninstall one plugin or set a routing "
+                "profile to make the choice deterministic."
+            ),
+        )
     _PROVIDER_REGISTRY[provider_id] = factory
 
 

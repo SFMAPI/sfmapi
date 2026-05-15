@@ -11,6 +11,10 @@ Run with::
 
     uv pip install -e ../sfmapi_colmap_cli -e ../sfmapi_realityscan
     SFMAPI_EPHEMERAL=true uv run python scripts/multi_plugin_demo.py
+
+``SFMAPI_AUTO_LOAD_BACKEND_PLUGINS`` defaults to true, so ``pip install``
+of any ``sfmapi.backends`` entry-point plugin is enough — no separate
+opt-in flag is needed.
 """
 
 from __future__ import annotations

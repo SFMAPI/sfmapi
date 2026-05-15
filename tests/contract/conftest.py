@@ -81,8 +81,12 @@ def _clear_inherited_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "SFMAPI_INLINE_TASKS",
         "SFMAPI_QUEUE_BACKEND",
         "SFMAPI_BLOB_BACKEND",
+        "SFMAPI_AUTO_LOAD_BACKEND_PLUGINS",
     ):
         monkeypatch.delenv(key, raising=False)
+    # Contract fixtures lock the recorded responses to the StubBackend
+    # surface — never pull in whatever plugins the venv happens to ship.
+    monkeypatch.setenv("SFMAPI_AUTO_LOAD_BACKEND_PLUGINS", "false")
 
 
 @pytest.fixture
