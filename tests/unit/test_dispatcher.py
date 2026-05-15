@@ -42,6 +42,7 @@ def test_handler_registry_has_all_known_kinds() -> None:
         "merge_recons",
         "video_frames",
         "kapture_import",
+        "import_archive",
     }
     assert expected.issubset(handlers.keys())
 

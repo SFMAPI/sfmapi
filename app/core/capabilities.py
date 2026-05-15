@@ -147,6 +147,9 @@ OPTIONAL_CAPABILITIES: tuple[str, ...] = (
     # Data ingest
     "video.frame_extract",
     "import.kapture",
+    # Decode an uploaded image zip into a derived dataset. sfmapi-internal
+    # (pure stdlib zipfile) — always available, no backend required.
+    "import.archive",
     # Snapshot inspection
     "observations.by_image",
     "observations.by_point",
@@ -358,6 +361,7 @@ def detect_capabilities() -> Capabilities:
     caps.features["inputs.imu"] = True
     caps.features["inputs.timestamps"] = True
     caps.features["import.kapture"] = True
+    caps.features["import.archive"] = True
     # Video frame extraction needs ffmpeg on PATH.
     import shutil as _sh
 

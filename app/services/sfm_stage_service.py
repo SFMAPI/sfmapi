@@ -653,6 +653,53 @@ async def submit_kapture_import(
     )
 
 
+async def submit_dataset_from_archive(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    project_id: str,
+    blob_sha: str,
+    name: str | None = None,
+    camera_model: str = "SIMPLE_RADIAL",
+    intrinsics_mode: str = "single_camera",
+    is_spherical: bool = False,
+    image_prefix: str | None = None,
+    inline: bool = False,
+) -> tuple[str, list[Any]]:
+    """Decode an uploaded image zip (``blob_sha``) into a derived dataset.
+
+    The zip itself rode the normal chunked-upload protocol; this only
+    enqueues the unpack. The worker reads the archive straight from the
+    blob store (pure-memory for the in-memory backend), enforces the
+    uncompressed-size cap, extracts the image entries, and emits the
+    generic ``derived_dataset`` block — the dispatcher then creates the
+    ImageSource + Dataset + Image rows. ``image_prefix`` restricts the
+    import to a zip subpath (e.g. ``south-building/images/``); when
+    unset the worker auto-detects the common image directory."""
+    require_capability("import.archive")
+    paths = Paths(get_settings())
+    output_dir = paths.workspace_root / "_archive_import" / new_id()
+    spec: dict[str, Any] = {
+        "name": name,
+        "camera_model": camera_model,
+        "intrinsics_mode": intrinsics_mode,
+        "is_spherical": is_spherical,
+    }
+    if image_prefix:
+        spec["image_prefix"] = image_prefix
+    inputs = {"blob_sha": blob_sha, "output_dir": str(output_dir)}
+    return await _submit_single_stage(
+        session,
+        tenant_id=tenant_id,
+        project_id=project_id,
+        recipe="import_archive",
+        kind="import_archive",
+        inputs=inputs,
+        spec=spec,
+        inline=inline,
+    )
+
+
 async def submit_merge_recons(
     session: AsyncSession,
     *,

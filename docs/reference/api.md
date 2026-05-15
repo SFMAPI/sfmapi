@@ -171,6 +171,7 @@ Example feature extraction request:
 | DELETE | `/v1/projects/{pid}` | — | 204 |
 | POST | `/v1/projects/{pid}/datasets:from_video` | `VideoFramesRequest` | 202 + `JobAccepted` |
 | POST | `/v1/projects/{pid}/datasets:import_kapture` | `KaptureImportRequest` | 202 + `JobAccepted` |
+| POST | `/v1/projects/{pid}/datasets:from_archive` | `ArchiveImportRequest` | 202 + `JobAccepted` |
 
 PATCH accepts an optional AIP-161 `update_mask` query parameter. Mask
 paths are comma-separated, body-relative, and must also be present in

@@ -1091,6 +1091,33 @@ PATH).
 `local`-source dataset pointing at `image_root`. Capability:
 `import.kapture` (pure-Python, always available).
 
+#### 6.9.13a Image-archive import (optional)
+
+`POST /v1/projects/{pid}/datasets:from_archive` with body
+`{blob_sha, name?, camera_model?, intrinsics_mode?, is_spherical?,
+image_prefix?}` registers a dataset from a single uploaded image zip,
+collapsing the N-per-image registration flow to one call. The zip
+**MUST** first ride the normal chunked-upload protocol (§6.3); the
+route only enqueues the unpack. The worker decodes the archive
+directly from the blob store (in memory for the in-memory backend —
+no second tempfile), extracts the image entries, and the server
+registers a derived `local`-source dataset. The terminal job's task
+carries `{num_images, derived_dataset}`.
+
+Guarantees a conforming server **MUST** honor:
+
+- The *uncompressed* image total is checked against a configurable cap
+  (`SFMAPI_ARCHIVE_IMPORT_MAX_BYTES`, generous default) read from the
+  zip central directory **before** any entry is decompressed — a zip
+  bomb is rejected up front, not after it inflates.
+- Any entry whose path is absolute, drive-anchored, or contains a
+  `..` segment fails the whole import (no silent relocation).
+- `image_prefix` restricts the import to one zip subtree; when unset
+  the common image directory is auto-detected and stripped, so a
+  `south-building/images/P1.JPG` entry registers as `P1.JPG`.
+
+Capability: `import.archive` (pure-Python, always available).
+
 #### 6.9.14 Pose-prior IMU + timestamps (optional)
 
 `PosePrior` carries optional `timestamp_ns` and `imu` fields:

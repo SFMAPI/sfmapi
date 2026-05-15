@@ -55,6 +55,41 @@ class KaptureImportRequest(BaseModel):
     archive_path: str  # extracted Kapture archive root on the worker
 
 
+class ArchiveImportRequest(BaseModel):
+    """``POST /v1/projects/{pid}/datasets:from_archive`` — register a
+    dataset from an already-uploaded image zip.
+
+    Upload the zip through the normal chunked-upload protocol first
+    (``POST /v1/uploads`` → ``PATCH`` → ``:finalize`` → ``blob_sha``);
+    this route only enqueues the unpack. The worker decodes the archive
+    straight from the blob store (in memory for the ephemeral backend),
+    extracts the image entries, and registers a derived dataset — one
+    call instead of N per-image registrations."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    blob_sha: str = Field(
+        ...,
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+        description="Content address of the finalized zip upload.",
+    )
+    name: str | None = Field(default=None, max_length=255)
+    camera_model: str = "SIMPLE_RADIAL"
+    intrinsics_mode: str = "single_camera"
+    is_spherical: bool = False
+    image_prefix: str | None = Field(
+        default=None,
+        max_length=1024,
+        description=(
+            "Restrict the import to entries under this zip subpath "
+            "(e.g. 'south-building/images/'). When unset the worker "
+            "auto-detects the common image directory."
+        ),
+    )
+
+
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 async def create(
     body: ProjectCreate,
@@ -197,5 +232,38 @@ async def import_kapture(
         tenant_id=tenant_id,
         project_id=project_id,
         archive_path=body.archive_path,
+    )
+    return accepted_response(JobAcceptedResponse(job_id=job_id, project_id=project_id))
+
+
+@router.post(
+    "/{project_id}/datasets:from_archive",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=JobAcceptedResponse,
+)
+async def from_archive(
+    project_id: str,
+    body: ArchiveImportRequest,
+    tenant_id: str = Depends(current_tenant),
+    session: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Register a dataset from an already-uploaded image zip.
+
+    Collapses the N-per-image registration flow to one call: the worker
+    decodes the finalized zip (``blob_sha``) straight from the blob
+    store, enforces the uncompressed-size cap, extracts the images, and
+    the dispatcher registers the resulting derived dataset. Follow
+    ``Location`` to the job; the terminal job's task carries
+    ``num_images`` and the registered ``derived_dataset``."""
+    job_id, _tasks = await sfm_stage_service.submit_dataset_from_archive(
+        session,
+        tenant_id=tenant_id,
+        project_id=project_id,
+        blob_sha=body.blob_sha,
+        name=body.name,
+        camera_model=body.camera_model,
+        intrinsics_mode=body.intrinsics_mode,
+        is_spherical=body.is_spherical,
+        image_prefix=body.image_prefix,
     )
     return accepted_response(JobAcceptedResponse(job_id=job_id, project_id=project_id))
