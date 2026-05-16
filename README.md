@@ -63,9 +63,12 @@ Public SfM job endpoints never install plugins implicitly. HTTP plugin
 install execution is dry-run by default and requires
 `allow_unsafe_execution=true`; the CLI is the preferred install path.
 Installed backend packages should expose
-`[project.entry-points."sfmapi.backends"]`. Set
-`SFMAPI_AUTO_LOAD_BACKEND_PLUGINS=true` only in worker/operator
-processes where importing backend packages is acceptable. Loaded
+`[project.entry-points."sfmapi.backends"]`. Entry-point auto-loading
+is **on by default** (`SFMAPI_AUTO_LOAD_BACKEND_PLUGINS=true`) — a
+`pip install sfmapi_<backend>` activates the plugin on the next
+process start, matching the standard Python plugin-ecosystem
+expectation. Set it to `false` for explicit-allowlist deployments
+that must not import whatever happens to be on the venv. Loaded
 entry points register provider ids as backend aliases, so a resolved
 stage `provider` selects the backend that executes that task. Plugins
 disabled in local hub state are skipped during entry-point loading.
