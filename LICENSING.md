@@ -11,8 +11,9 @@ version 3 or later (AGPL-3.0-or-later)**. This applies uniformly to:
 - the server (`sfmapi`),
 - every backend plugin (`sfmapi_colmap_cli`, `sfmapi_pycolmap`,
   `sfmapi_colmap`, `sfmapi_hloc`, `sfmapi_realityscan`,
-  `sfmapi_instantsfm` — wrapper is AGPL but the plugin is fenced out
-  of the commercial scope, see below — `sfmapi_spheresfm`),
+  `sfmapi_instantsfm` — wrapper is plain AGPL; sfmapi's commercial
+  license just doesn't extend to it because its upstream is
+  CC-BY-NC, see below — `sfmapi_spheresfm`),
 - all three SDKs (Python, TypeScript, C++),
 - the benchmark/conformance tools (`sfmapi-bench`).
 
@@ -21,26 +22,40 @@ per plugin under `LICENSES/` (e.g. COLMAP is BSD-3-Clause). Those
 licenses govern the upstream code; the AGPL governs *this project's*
 code that wraps it.
 
-### Non-commercial exclusion — `sfmapi_instantsfm`
+### `sfmapi_instantsfm` and its CC-BY-NC upstream
 
-One plugin is fenced out of the commercial scope. **`sfmapi_instantsfm`**
-wraps upstream InstantSfM (`cre185/InstantSfM`), which is licensed
-**CC-BY-NC-4.0 — non-commercial**. The wrapper + SDK material in that
-package is AGPL-3.0-or-later like everything else; the published
-package ships only the wrapper and references the upstream as a git
-submodule (it does not redistribute the NC source). Nonetheless:
+**`sfmapi_instantsfm`** wraps upstream InstantSfM
+(`cre185/InstantSfM`), which upstream licenses **CC-BY-NC-4.0 —
+non-commercial**.
 
-- `sfmapi_instantsfm` is **demo / non-commercial only** and is
-  **excluded from the dual-license / commercial offer in §3**. No
-  commercial license covers it; nothing in a commercial deployment may
-  depend on it.
-- The CC-BY-NC-4.0 obligation runs to whoever *operates* InstantSfM.
-  Wrapping it does not lift that obligation; running it for commercial
-  advantage breaches the upstream license regardless of this project's
-  AGPL terms.
+The framing matters, so it is stated precisely:
 
-This exclusion is the deliberate, fenced answer to the
-"AGPL + commercial vs. an NC upstream" conflict — not a defect.
+- **The wrapper + SDK material in `sfmapi_instantsfm` is plain
+  AGPL-3.0-or-later, with no additional restrictions.** sfmapi does
+  **not** add a non-commercial term to it — doing so would be
+  incoherent (AGPLv3 §7 does not permit adding a field-of-use
+  restriction, which is why CC-BY-NC and the GPL family are
+  incompatible). The AGPL grant on this wrapper is unrestricted, like
+  every other plugin.
+- **The non-commercial limitation is upstream InstantSfM's, not
+  sfmapi's.** It binds whoever *operates* InstantSfM. Wrapping it
+  neither adds nor removes that obligation; it is independent of
+  sfmapi's license. The published package ships only the wrapper and
+  references the upstream as a git submodule — it does not
+  redistribute the NC source.
+- **sfmapi simply does not extend its §3 commercial / dual license to
+  this plugin.** That is a statement about the scope of *sfmapi's
+  offer*, not a prohibition imposed on you: a commercial sfmapi
+  license cannot usefully cover a plugin whose upstream is
+  non-commercial, so it doesn't. Nothing in a commercial deployment
+  should depend on `sfmapi_instantsfm`, because the **upstream**
+  CC-BY-NC term — not any sfmapi term — would bar that operator's use.
+
+Net: use the wrapper under AGPL freely; whether you may run InstantSfM
+through it for commercial advantage is governed entirely by upstream
+CC-BY-NC-4.0, on you as the operator. This is the coherent resolution
+of the "AGPL + commercial vs. an NC upstream" question — not a defect,
+and not an sfmapi-imposed non-commercial clause.
 
 ## 1. What the AGPL obligates — by integration shape
 
